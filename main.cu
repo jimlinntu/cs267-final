@@ -7,15 +7,90 @@
 #include <cusparse.h>
 #include <stdio.h>
 
-// TODO: wrap the
-void spmm(){
+#include <assert.h>
+
+struct Algo{
+    void spmm();
+    void sddmm();
+    void sddmm_spmm();
+};
+
+struct MatrixGenerator{
+    void generate_sparse_csr(int, int);
+    void generate_dense(int, int);
+};
+
+struct CusparseAlgo{
+    void spmm();
+    void sddmm();
+    void sddmm_spmm();
+};
+
+// ---------------------------
+void Algo::spmm(){
 }
 
-// TODO:
-void sddmm(){
+void Algo::sddmm(){
 }
 
-// TODO: random sparse matric generator
+void Algo::sddmm_spmm(){
+}
+
+void CusparseAlgo::spmm(){
+}
+
+void CusparseAlgo::sddmm(){
+}
+
+void CusparseAlgo::sddmm_spmm(){
+}
+
+void MatrixGenerator::generate_sparse_csr(int num_rows, int num_cols){
+}
+
+void MatrixGenerator::generate_dense(int num_rows, int num_cols){
+}
+
+struct HostSparseMat{
+    int num_rows, num_cols;
+    int nnz;
+    int *offsets;
+    int *cols;
+    double *vals;
+    HostSparseMat(
+            int num_rows_, int num_cols_, int nnz_,
+            int *offsets_, int *cols_, double *vals_)
+        :num_rows(num_rows_), num_cols(num_cols_), nnz(nnz_),
+         offsets(offsets_), cols(cols_), vals(vals_){
+    }
+    ~HostSparseMat(){
+        delete offsets;
+        delete cols;
+        delete vals;
+    }
+};
+
+struct DeviceSparseMat{
+    int num_rows, num_cols;
+    int nnz;
+    int *offsets;
+    int *cols;
+    double *vals;
+    DeviceSparseMat(
+            int num_rows_, int num_cols_, int nnz_,
+            int *offsets_, int *cols_, double *vals_)
+        :num_rows(num_rows_), num_cols(num_cols_), nnz(nnz_),
+         offsets(offsets_), cols(cols_), vals(vals_){
+    }
+    ~DeviceSparseMat(){
+        assert(cudaFree(offsets) == cudaSuccess);
+        assert(cudaFree(cols) == cudaSuccess);
+        assert(cudaFree(vals) == cudaSuccess);
+    }
+};
+
+void simple_testcase(){
+}
 
 int main(){
     // C = S @ A
