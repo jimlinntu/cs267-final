@@ -72,9 +72,9 @@ void MatrixGenerator::generate_dense(int num_rows, int num_cols){
 
 // forward declaration
 struct HostDenseMat;
-struct HostSparseMat;
-
 struct DeviceDenseMat;
+
+struct HostSparseMat;
 struct DeviceSparseMat;
 
 struct HostDenseMat{
@@ -97,59 +97,6 @@ struct DeviceDenseMat{
     void copy_to_host(HostDenseMat &h);
 };
 
-struct DeviceSparseMat{
-    int num_rows, num_cols;
-    int nnz;
-    int *offsets;
-    int *cols;
-    double *vals;
-
-    DeviceSparseMat() = default;
-
-    DeviceSparseMat(
-            int num_rows_, int num_cols_, int nnz_,
-            int *offsets_, int *cols_, double *vals_)
-        :num_rows(num_rows_), num_cols(num_cols_), nnz(nnz_),
-         offsets(offsets_), cols(cols_), vals(vals_){
-    }
-    ~DeviceSparseMat(){
-        assert(cudaFree(offsets) == cudaSuccess);
-        assert(cudaFree(cols) == cudaSuccess);
-        assert(cudaFree(vals) == cudaSuccess);
-    }
-    void get_cusparse_descriptor(
-        cusparseSpMatDescr_t &mat){
-
-        cusparseCreateCsr(&mat, num_rows, num_cols, nnz,
-                          offsets, cols, vals,
-                          CUSPARSE_INDEX_32I, CUSPARSE_INDEX_32I,
-                          CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F);
-    }
-};
-
-DeviceDenseMat::~DeviceDenseMat(){
-    assert(cudaFree(vals) == cudaSuccess);
-}
-void DeviceDenseMat::get_cusparse_descriptor(cusparseDnMatDescr_t &mat){
-    assert(cusparseCreateDnMat(&mat, num_rows, num_cols, num_cols, vals, CUDA_R_64F, CUSPARSE_ORDER_ROW) == cudaSuccess);
-}
-void DeviceDenseMat::copy_to_host(HostDenseMat &h){
-    assert(h.num_rows == num_rows);
-    assert(h.num_cols == num_cols);
-    assert(cudaMemcpy(h.vals, vals, num_rows * num_cols * sizeof(double), cudaMemcpyDeviceToHost) == cudaSuccess);
-}
-
-std::ostream& operator<<(std::ostream &os, const HostDenseMat &obj){
-    for(int i = 0; i < obj.num_rows; ++i){
-        for(int j = 0; j < obj.num_cols; ++j){
-            os << obj.vals[i*obj.num_cols + j] << "\t";
-        }
-        os << "\n";
-    }
-    return os;
-}
-
-
 struct HostSparseMat{
     int num_rows, num_cols;
     int nnz;
@@ -159,34 +106,26 @@ struct HostSparseMat{
     bool to_delete;
     HostSparseMat(
             int num_rows_, int num_cols_, int nnz_,
-            int *offsets_, int *cols_, double *vals_)
-        :num_rows(num_rows_), num_cols(num_cols_), nnz(nnz_),
-         offsets(offsets_), cols(cols_), vals(vals_), to_delete(false){
-    }
-    ~HostSparseMat(){
-        if(!to_delete) return;
-
-        delete offsets;
-        delete cols;
-        delete vals;
-    }
-    void to_device(DeviceSparseMat &d){
-        d.num_rows = num_rows;
-        d.num_cols = num_cols;
-        d.nnz = nnz;
-
-        // malloc
-        assert(cudaMalloc(&d.offsets, (num_rows+1) * sizeof(int)) == cudaSuccess);
-        assert(cudaMalloc(&d.cols, nnz * sizeof(int)) == cudaSuccess);
-        assert(cudaMalloc(&d.vals, nnz * sizeof(double)) == cudaSuccess);
-
-        // copy
-        assert(cudaMemcpy(d.offsets, offsets, (num_rows+1) * sizeof(int), cudaMemcpyHostToDevice) == cudaSuccess);
-        assert(cudaMemcpy(d.cols, cols, nnz * sizeof(int), cudaMemcpyHostToDevice) == cudaSuccess);
-        assert(cudaMemcpy(d.vals, vals, nnz * sizeof(double), cudaMemcpyHostToDevice) == cudaSuccess);
-    }
+            int *offsets_, int *cols_, double *vals_);
+    ~HostSparseMat();
+    void to_device(DeviceSparseMat &d);
 };
 
+struct DeviceSparseMat{
+    int num_rows, num_cols;
+    int nnz;
+    int *offsets;
+    int *cols;
+    double *vals;
+
+    DeviceSparseMat() = default;
+    DeviceSparseMat(int num_rows_, int num_cols_, int nnz_,
+            int *offsets_, int *cols_, double *vals_);
+    ~DeviceSparseMat();
+    void get_cusparse_descriptor(cusparseSpMatDescr_t &mat);
+};
+
+// ==
 HostDenseMat::HostDenseMat(int num_rows_, int num_cols_, double *vals_)
         :num_rows(num_rows_), num_cols(num_cols_), vals(vals_), to_delete(false){
 
@@ -204,7 +143,82 @@ void HostDenseMat::to_device(DeviceDenseMat &d){
     assert(cudaMalloc(&d.vals, num_rows * num_cols * sizeof(double)) == cudaSuccess);
     assert(cudaMemcpy(d.vals, vals, num_rows * num_cols * sizeof(double), cudaMemcpyHostToDevice) == cudaSuccess);
 }
+std::ostream& operator<<(std::ostream &os, const HostDenseMat &obj){
+    for(int i = 0; i < obj.num_rows; ++i){
+        for(int j = 0; j < obj.num_cols; ++j){
+            os << obj.vals[i*obj.num_cols + j] << "\t";
+        }
+        os << "\n";
+    }
+    return os;
+}
 
+
+DeviceDenseMat::~DeviceDenseMat(){
+    assert(cudaFree(vals) == cudaSuccess);
+}
+void DeviceDenseMat::get_cusparse_descriptor(cusparseDnMatDescr_t &mat){
+    assert(cusparseCreateDnMat(&mat, num_rows, num_cols, num_cols, vals, CUDA_R_64F, CUSPARSE_ORDER_ROW) == cudaSuccess);
+}
+void DeviceDenseMat::copy_to_host(HostDenseMat &h){
+    assert(h.num_rows == num_rows);
+    assert(h.num_cols == num_cols);
+    assert(cudaMemcpy(h.vals, vals, num_rows * num_cols * sizeof(double), cudaMemcpyDeviceToHost) == cudaSuccess);
+}
+
+
+HostSparseMat::HostSparseMat(
+            int num_rows_, int num_cols_, int nnz_,
+            int *offsets_, int *cols_, double *vals_)
+    :num_rows(num_rows_), num_cols(num_cols_), nnz(nnz_),
+     offsets(offsets_), cols(cols_), vals(vals_), to_delete(false){
+}
+
+HostSparseMat::~HostSparseMat(){
+    if(!to_delete) return;
+
+    delete offsets;
+    delete cols;
+    delete vals;
+}
+
+void HostSparseMat::to_device(DeviceSparseMat &d){
+    d.num_rows = num_rows;
+    d.num_cols = num_cols;
+    d.nnz = nnz;
+
+    // malloc
+    assert(cudaMalloc(&d.offsets, (num_rows+1) * sizeof(int)) == cudaSuccess);
+    assert(cudaMalloc(&d.cols, nnz * sizeof(int)) == cudaSuccess);
+    assert(cudaMalloc(&d.vals, nnz * sizeof(double)) == cudaSuccess);
+
+    // copy
+    assert(cudaMemcpy(d.offsets, offsets, (num_rows+1) * sizeof(int), cudaMemcpyHostToDevice) == cudaSuccess);
+    assert(cudaMemcpy(d.cols, cols, nnz * sizeof(int), cudaMemcpyHostToDevice) == cudaSuccess);
+    assert(cudaMemcpy(d.vals, vals, nnz * sizeof(double), cudaMemcpyHostToDevice) == cudaSuccess);
+}
+
+DeviceSparseMat::DeviceSparseMat(
+        int num_rows_, int num_cols_, int nnz_,
+        int *offsets_, int *cols_, double *vals_)
+    :num_rows(num_rows_), num_cols(num_cols_), nnz(nnz_),
+     offsets(offsets_), cols(cols_), vals(vals_){
+}
+
+DeviceSparseMat::~DeviceSparseMat(){
+    assert(cudaFree(offsets) == cudaSuccess);
+    assert(cudaFree(cols) == cudaSuccess);
+    assert(cudaFree(vals) == cudaSuccess);
+}
+
+void DeviceSparseMat::get_cusparse_descriptor(
+    cusparseSpMatDescr_t &mat){
+
+    cusparseCreateCsr(&mat, num_rows, num_cols, nnz,
+                      offsets, cols, vals,
+                      CUSPARSE_INDEX_32I, CUSPARSE_INDEX_32I,
+                      CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F);
+}
 
 void test_spmm(){
     // C = S @ A
