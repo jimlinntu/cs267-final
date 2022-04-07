@@ -9,8 +9,10 @@
 #include <iomanip>
 #include <assert.h>
 #include <iostream>
+#include <cmath>
+#include <limits> 
 
-#define TILE_WIDTH 2
+#define TILE_WIDTH 4
 
 // forward declaration
 struct HostDenseMat;
@@ -32,6 +34,19 @@ struct HostDenseMat{
     // overload get
     double operator [](int i) const {return vals[i];};
     // overload comparison
+    bool operator == (const HostDenseMat& m2) {
+        if(num_rows != m2.num_rows) return false;
+        if(num_cols != m2.num_cols) return false;
+        double epsilon = 1e-4; // std::numeric_limits<double>::epsilon();
+        for(int i = 0; i < num_rows; i++)
+            for(int j = 0; j < num_cols; j++)
+                if(std::fabs(vals[i*num_cols+j] - m2.vals[i*num_cols+j]) > epsilon)
+                    return false;
+        return true;
+    }
+    bool operator != (const HostDenseMat& m2) {
+        return !(*this == m2);
+    }
 };
 
 struct DeviceDenseMat{
@@ -124,8 +139,7 @@ void Algo::ddmm_seq(HostDenseMat &A, HostDenseMat &B, HostDenseMat &C){
 }
 
 
-__global__ void ddmm_kernel(double* A, double* B, double* C, int width) {
-    // A, B, C are square
+__global__ void ddmm_kernel(double* A, double* B, double* C, int A_h, int A_w, int B_h, int B_w) {
     __shared__ double As[TILE_WIDTH][TILE_WIDTH];
     __shared__ double Bs[TILE_WIDTH][TILE_WIDTH];
 
@@ -133,29 +147,40 @@ __global__ void ddmm_kernel(double* A, double* B, double* C, int width) {
     int gy_C = blockIdx.y * TILE_WIDTH + threadIdx.y;
     double value_C = 0.0;
 
-    for(int m = 0; m < width / TILE_WIDTH; m++) {
+    for(int m = 0; m < (A_w+TILE_WIDTH-1) / TILE_WIDTH; m++) {
         int lx_A = threadIdx.x;
         int ly_A = threadIdx.y;
         int gx_A = m * TILE_WIDTH + threadIdx.x;
         int gy_A = gy_C;
-        As[ly_A][lx_A] = A[gy_A * width + gx_A];
+        if(gy_A < A_h && gx_A < A_w)
+            As[ly_A][lx_A] = A[gy_A * A_w + gx_A];
+        else // out of range
+            As[ly_A][lx_A] = 0.0;
 
         int lx_B = threadIdx.x;
         int ly_B = threadIdx.y;
         int gx_B = gx_C;
         int gy_B = m * TILE_WIDTH + threadIdx.y;
-        Bs[ly_B][lx_B] = B[gy_B * width + gx_B];
+        if(gy_B < B_h && gx_B < B_w)
+            Bs[ly_B][lx_B] = B[gy_B * B_w + gx_B];
+        else
+            Bs[ly_B][lx_B] = 0.0;
         
+        // printf("As[%d][%d]=%f\n", ly_A, lx_A, As[ly_A][lx_A]);
+        // printf("Bs[%d][%d]=%f\n", ly_B, lx_B, Bs[ly_A][lx_A]);
         __syncthreads();
 
         for(int k = 0; k < TILE_WIDTH; k++)
             value_C += As[ly_A][k] * Bs[k][lx_B];
 
-        __syncthreads(); // remove?
+        __syncthreads();
 
     }
 
-    C[gy_C * width + gx_C] = value_C;
+    // printf("C[%d][%d]=%f\n", gy_C, gx_C, value_C);
+    if(gy_C < A_h && gx_C < B_w) // make sure in range
+        C[gy_C * B_w + gx_C] = value_C;
+    
 }
 
 void Algo::ddmm(HostDenseMat &A, HostDenseMat &B, HostDenseMat &C){
@@ -164,10 +189,10 @@ void Algo::ddmm(HostDenseMat &A, HostDenseMat &B, HostDenseMat &C){
     B.to_device(d_B);
     C.to_device(d_C);
 
-    int width = A.num_rows;
-    dim3 dimGrid(width/TILE_WIDTH, width/TILE_WIDTH);
+    int A_h = A.num_rows, A_w = A.num_cols, B_h = B.num_rows, B_w = B.num_cols;
+    dim3 dimGrid((B_w+TILE_WIDTH-1)/TILE_WIDTH, (A_h+TILE_WIDTH-1)/TILE_WIDTH); // need to solve non-divisible
     dim3 dimBlock(TILE_WIDTH, TILE_WIDTH);
-    ddmm_kernel<<<dimGrid, dimBlock>>>(d_A.vals, d_B.vals, d_C.vals, width);
+    ddmm_kernel<<<dimGrid, dimBlock>>>(d_A.vals, d_B.vals, d_C.vals, A_h, A_w, B_h, B_w);
 
     d_C.copy_to_host(C);
 }
@@ -228,7 +253,7 @@ void HostDenseMat::to_device(DeviceDenseMat &d){
 std::ostream& operator<<(std::ostream &os, const HostDenseMat &obj){
     for(int i = 0; i < obj.num_rows; ++i){
         for(int j = 0; j < obj.num_cols; ++j){
-            os << std::right << std::setw(4) << std::setprecision(2) << obj.vals[i*obj.num_cols + j] << "\t";
+            os << std::right << std::setw(6) << std::setprecision(4) << obj.vals[i*obj.num_cols + j] << "\t";
         }
         os << "\n";
     }
@@ -368,36 +393,45 @@ void test_spmm(){
 void test_ddmm() {
     MatrixGenerator mg;
     Algo alg;
+    int A_hs[] = {4, 4, 4, 3, 13};
+    int A_ws[] = {4, 8, 16, 1, 5};
+    int B_hs[] = {4, 8, 16, 1, 5};
+    int B_ws[] = {4, 4, 8, 3, 11};
 
-    // matrix A
-    int A_num_rows = 4, A_num_cols = 4;
-    double* A_vals = NULL;
-    mg.generate_dense(A_num_rows, A_num_cols, &A_vals);
-    HostDenseMat A(A_num_rows, A_num_cols, A_vals);
+    for(int i = 0; i < 4; i++) {
+        std::cout << "Iteration " << i << ":" << std::endl;
+        // matrix A
+        int A_num_rows = A_hs[i], A_num_cols = A_ws[i];
+        double* A_vals = NULL;
+        mg.generate_dense(A_num_rows, A_num_cols, &A_vals);
+        HostDenseMat A(A_num_rows, A_num_cols, A_vals);
 
-    // matrix B
-    int B_num_rows = 4, B_num_cols = 4;
-    double* B_vals = NULL;
-    mg.generate_dense(B_num_rows, B_num_cols, &B_vals);
-    HostDenseMat B(B_num_rows, B_num_cols, B_vals);
+        // matrix B
+        int B_num_rows = B_hs[i], B_num_cols = B_ws[i];
+        double* B_vals = NULL;
+        mg.generate_dense(B_num_rows, B_num_cols, &B_vals);
+        HostDenseMat B(B_num_rows, B_num_cols, B_vals);
 
-    // matrix C
-    int C_num_rows = A_num_rows, C_num_cols = B_num_cols;
-    double* C_vals = NULL;
-    mg.generate_dense(C_num_rows, C_num_cols, &C_vals);
-    HostDenseMat C(C_num_rows, C_num_cols, C_vals);
+        // matrix C
+        int C_num_rows = A_num_rows, C_num_cols = B_num_cols;
+        double* C_vals = NULL;
+        mg.generate_dense(C_num_rows, C_num_cols, &C_vals);
+        HostDenseMat C(C_num_rows, C_num_cols, C_vals);
 
-    alg.ddmm_seq(A, B, C);
-    std::cout << C;
+        alg.ddmm_seq(A, B, C);
+        std::cout << "Sequential DDMM:" << std::endl;
+        std::cout << C;
+        // matrix D
+        int D_num_rows = A_num_rows, D_num_cols = B_num_cols;
+        double* D_vals = NULL;
+        mg.generate_dense(D_num_rows, D_num_cols, &D_vals);
+        HostDenseMat D(D_num_rows, D_num_cols, D_vals);
 
-    // matrix D
-    int D_num_rows = A_num_rows, D_num_cols = B_num_cols;
-    double* D_vals = NULL;
-    mg.generate_dense(D_num_rows, D_num_cols, &D_vals);
-    HostDenseMat D(D_num_rows, D_num_cols, D_vals);
-
-    alg.ddmm(A, B, D);
-    std::cout << D;
+        alg.ddmm(A, B, D);
+        std::cout << "Blocked DDMM:" << std::endl;
+        std::cout << D;
+        assert(C == D);
+    }
 }
 
 int main(){
