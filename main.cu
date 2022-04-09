@@ -12,7 +12,7 @@
 #include <cmath>
 #include <limits> 
 
-#define TILE_WIDTH 4
+#define TILE_WIDTH 2
 
 /*********************
 Header for struct 
@@ -78,6 +78,7 @@ struct HostSparseMat{
             int *offsets_, int *cols_, double *vals_);
     ~HostSparseMat();
     void to_device(DeviceSparseMat &d);
+    void to_dense(HostDenseMat &mat);
 };
 
 struct DeviceSparseMat{
@@ -95,7 +96,7 @@ struct DeviceSparseMat{
 };
 
 struct Algo{
-    void spmm();
+    void spmm(HostSparseMat &, HostDenseMat &, HostDenseMat &);
     void sddmm();
     void sddmm_spmm();
     void ddmm_seq(HostDenseMat &, HostDenseMat &, HostDenseMat &);
@@ -120,7 +121,45 @@ struct CusparseAlgo{
 Function for Algo
 ******************/
 // ---------------------------
-void Algo::spmm(){
+
+__global__ void spmm_kernel(double *A_vals, int *A_cols, int *A_offsets, double *B_vals, double *C_vals, int A_h, int A_w, int B_h, int B_w) {
+    int gy_C = blockIdx.y * 1 + threadIdx.y, gx_C = blockIdx.x * TILE_WIDTH + threadIdx.x;
+    
+    if(gy_C >= A_h || gx_C >= B_w) return;
+
+    int row_C = gy_C;
+    int col_C = gx_C;
+
+    int start_idx = A_offsets[row_C], end_idx = A_offsets[row_C+1];
+    double value = 0.0;
+
+    
+    for(int i = start_idx; i < end_idx; i++) {
+        int col_A = A_cols[i];
+        double val_A = A_vals[i];
+        //printf("A[%d][%d]=%f", row_C, col_A, val_A);
+        //printf("B[%d][%d]=%f", col_A, col_C, B_vals[col_A*B_w + col_C]);
+        value += val_A * B_vals[col_A*B_w + col_C];
+    }
+
+    // printf("C_vals[%d][%d]=%f\n", row_C, col_C, value);
+    C_vals[row_C*B_w + col_C] = value;
+}
+
+void Algo::spmm(HostSparseMat &A, HostDenseMat &B, HostDenseMat &C){
+    DeviceSparseMat dA;
+    DeviceDenseMat dB, dC;
+    A.to_device(dA);
+    B.to_device(dB);
+    C.to_device(dC);
+
+    int A_h = A.num_rows, A_w = A.num_cols, B_h = B.num_rows, B_w = B.num_cols;
+    dim3 dimGrid((B_w+TILE_WIDTH-1)/TILE_WIDTH, A_h);
+    dim3 dimBlock(TILE_WIDTH, 1);
+
+    spmm_kernel<<<dimGrid, dimBlock>>>(dA.vals, dA.cols, dA.offsets, dB.vals, dC.vals, A_h, A_w, B_h, B_w);
+
+    dC.copy_to_host(C);
 }
 
 void Algo::sddmm(){
@@ -196,7 +235,7 @@ void Algo::ddmm(HostDenseMat &A, HostDenseMat &B, HostDenseMat &C){
     C.to_device(d_C);
 
     int A_h = A.num_rows, A_w = A.num_cols, B_h = B.num_rows, B_w = B.num_cols;
-    dim3 dimGrid((B_w+TILE_WIDTH-1)/TILE_WIDTH, (A_h+TILE_WIDTH-1)/TILE_WIDTH); // need to solve non-divisible
+    dim3 dimGrid((B_w+TILE_WIDTH-1)/TILE_WIDTH, (A_h+TILE_WIDTH-1)/TILE_WIDTH);
     dim3 dimBlock(TILE_WIDTH, TILE_WIDTH);
     ddmm_kernel<<<dimGrid, dimBlock>>>(d_A.vals, d_B.vals, d_C.vals, A_h, A_w, B_h, B_w);
 
@@ -355,6 +394,21 @@ HostSparseMat::~HostSparseMat(){
     delete vals;
 }
 
+void HostSparseMat::to_dense(HostDenseMat &mat){
+    for(int i = 0; i < num_rows; i++)
+        for(int j = 0; j < num_cols; j++)
+            mat.vals[i*num_cols+j] = 0.0;
+
+    for(int i = 0; i < num_rows; i++) {
+        int start_idx = offsets[i];
+        int end_idx = offsets[i+1];
+        for(int j = start_idx; j < end_idx; j++) {
+            int col = cols[j];
+            mat.vals[i*num_cols+col] = vals[j];
+        }
+    }
+}
+
 void HostSparseMat::to_device(DeviceSparseMat &d){
     d.num_rows = num_rows;
     d.num_cols = num_cols;
@@ -374,11 +428,11 @@ void HostSparseMat::to_device(DeviceSparseMat &d){
 std::ostream& operator<<(std::ostream &os, const HostSparseMat &obj){
     double* tmp = new double[obj.num_rows * obj.num_cols];
     for(int i = 0; i < obj.num_rows; i++) {
-        int start_col = obj.offsets[i];
-        int end_col = obj.offsets[i+1];
-        for(int j = start_col; j < end_col; j++) {
-            int idx = obj.cols[j];
-            tmp[i*obj.num_cols+idx] = obj.vals[j];
+        int start_idx = obj.offsets[i];
+        int end_idx = obj.offsets[i+1];
+        for(int j = start_idx; j < end_idx; j++) {
+            int col = obj.cols[j];
+            tmp[i*obj.num_cols+col] = obj.vals[j];
         }
     }
 
@@ -526,20 +580,64 @@ void test_ddmm() {
 }
 
 void test_spmm() {
-    int num_rows = 5, num_cols = 5;
-    int nnz;
-    int *offsets, *cols;
-    double* vals;
     MatrixGenerator mg;
-    mg.generate_sparse_csr(num_rows, num_cols, nnz, &cols, &offsets, &vals);
-    HostSparseMat smat(num_rows, num_cols, nnz, cols, offsets, vals);
-    std::cout << smat;
+    Algo ag;
 
+
+    int A_hs[] = {4, 4, 4, 3, 13};
+    int A_ws[] = {4, 8, 16, 1, 5};
+    int B_hs[] = {4, 8, 16, 1, 5};
+    int B_ws[] = {4, 4, 8, 3, 11};
+
+    for(int i = 0; i < 5; i++){
+        std::cout << "Iteration " << i << ":" << std::endl;
+        int A_num_rows = A_hs[i], A_num_cols = A_ws[i];
+        int A_nnz;
+        int *A_offsets, *A_cols;
+        double* A_vals;
+
+        mg.generate_sparse_csr(A_num_rows, A_num_cols, A_nnz, &A_cols, &A_offsets, &A_vals);
+        HostSparseMat A(A_num_rows, A_num_cols, A_nnz, A_cols, A_offsets, A_vals);
+        //std::cout << A << std::endl;
+
+        int B_num_rows = B_hs[i], B_num_cols = B_ws[i];
+        double* B_vals;
+        mg.generate_dense(B_num_rows, B_num_cols, &B_vals);
+        HostDenseMat B(B_num_rows, B_num_cols, B_vals);
+        //std::cout << B << std::endl;
+        
+        int C_num_rows = A_hs[i], C_num_cols = B_ws[i];
+        double* C_vals;
+        mg.generate_dense(C_num_rows, C_num_cols, &C_vals);
+        HostDenseMat C(C_num_rows, C_num_cols, C_vals);
+
+
+        double* A_dense_vals;
+        mg.generate_dense(A_num_rows, A_num_cols, &A_dense_vals);
+        HostDenseMat A_dense(A_num_rows, A_num_cols, A_dense_vals);
+        A.to_dense(A_dense);
+
+        ag.ddmm_seq(A_dense, B, C);
+        std::cout << "Sequential DDMM:" << std::endl;
+
+        std::cout << C;
+
+        int D_num_rows = A_hs[i], D_num_cols = B_ws[i];
+        double* D_vals;
+        mg.generate_dense(D_num_rows, D_num_cols, &D_vals);
+        HostDenseMat D(D_num_rows, D_num_cols, D_vals);
+        ag.spmm(A, B, D);
+        std::cout << "Blocked SpMM:" << std::endl;
+
+        std::cout << D;
+
+        assert(C==D);
+    }
 }
 int main(){
     srand(time(NULL));
 
-    test_spmm();
+    // test_spmm();
     // test_ddmm();
     return 0;
 }
