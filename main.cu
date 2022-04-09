@@ -14,6 +14,9 @@
 
 #define TILE_WIDTH 4
 
+/*********************
+Header for struct 
+******************/
 // forward declaration
 struct HostDenseMat;
 struct DeviceDenseMat;
@@ -100,7 +103,7 @@ struct Algo{
 };
 
 struct MatrixGenerator{
-    void generate_sparse_csr(int, int);
+    void generate_sparse_csr(int, int, int&, int**, int**, double**);
     void generate_dense(int, int, double**);
 };
 
@@ -113,6 +116,9 @@ struct CusparseAlgo{
 };
 
 
+/*********************
+Function for Algo
+******************/
 // ---------------------------
 void Algo::spmm(){
 }
@@ -197,6 +203,10 @@ void Algo::ddmm(HostDenseMat &A, HostDenseMat &B, HostDenseMat &C){
     d_C.copy_to_host(C);
 }
 
+/*********************
+Function for CusparseAlgo
+******************/
+
 void CusparseAlgo::spmm(
         cusparseHandle_t &handle,
         cusparseSpMatDescr_t &S,
@@ -222,7 +232,53 @@ void CusparseAlgo::sddmm(){
 void CusparseAlgo::sddmm_spmm(){
 }
 
-void MatrixGenerator::generate_sparse_csr(int num_rows_, int num_cols_){
+/*********************
+Function for MatrixGenerator
+******************/
+
+void MatrixGenerator::generate_sparse_csr(int num_rows_, int num_cols_, int &nnz, int** offsets, int** cols, double** vals) {
+    double *tmp_vals = new double[num_rows_ * num_cols_];
+    double epsilon = 1e-4;
+    double zero_ratio = 0.7;
+    double val;
+    nnz = 0;
+
+    for(int i = 0; i < num_rows_; i++)
+        for(int j = 0; j < num_cols_; j++) {
+            double p = ((double)rand()/(double)RAND_MAX);
+            if(p < zero_ratio)
+                val = 0.0;
+            else
+                val = ((double)rand()/(double)RAND_MAX) + epsilon;
+
+            if(val >= epsilon)
+                nnz += 1;
+
+            tmp_vals[i * num_cols_ + j] = val;
+        }
+    
+    *vals = new double[nnz];
+    *cols = new int[nnz];
+    *offsets = new int[num_rows_+1];
+    int vals_cursor = 0;
+    int cols_cursor = 0;
+
+    // printf("nnz=%d nr=%d nc=%d\n", nnz, num_rows_, num_cols_);
+
+    for(int i = 0; i < num_rows_; i++){
+        (*offsets)[i] = vals_cursor;
+        for(int j = 0; j < num_cols_; j++) {
+            // printf("i=%d j=%d\n", i, j);
+            if(tmp_vals[i*num_cols_+j] > epsilon) {
+                // printf("i=%d j=%d vals_cursor=%d\n", i, j, vals_cursor);
+                (*vals)[vals_cursor++] = tmp_vals[i*num_cols_+j];
+                (*cols)[cols_cursor++] = j;
+            }
+        }
+    }
+    (*offsets)[num_rows_] = vals_cursor;
+
+    free(tmp_vals);
 }
 
 void MatrixGenerator::generate_dense(int num_rows_, int num_cols_, double** vals){
@@ -232,7 +288,11 @@ void MatrixGenerator::generate_dense(int num_rows_, int num_cols_, double** vals
             (*vals)[i*num_cols_+j] = ((double)rand()/(double)RAND_MAX);
 }
 
-// ==
+
+/*********************
+Function for HostDenseMat
+******************/
+
 HostDenseMat::HostDenseMat(int num_rows_, int num_cols_, double* vals_)
         :num_rows(num_rows_), num_cols(num_cols_), vals(vals_), to_delete(false){
 }
@@ -260,6 +320,9 @@ std::ostream& operator<<(std::ostream &os, const HostDenseMat &obj){
     return os;
 }
 
+/*********************
+Function for DeviceDenseMat
+******************/
 
 DeviceDenseMat::~DeviceDenseMat(){
     assert(cudaFree(vals) == cudaSuccess);
@@ -273,6 +336,9 @@ void DeviceDenseMat::copy_to_host(HostDenseMat &h){
     assert(cudaMemcpy(h.vals, vals, num_rows * num_cols * sizeof(double), cudaMemcpyDeviceToHost) == cudaSuccess);
 }
 
+/*********************
+Function for HostSparseMat
+******************/
 
 HostSparseMat::HostSparseMat(
             int num_rows_, int num_cols_, int nnz_,
@@ -305,6 +371,31 @@ void HostSparseMat::to_device(DeviceSparseMat &d){
     assert(cudaMemcpy(d.vals, vals, nnz * sizeof(double), cudaMemcpyHostToDevice) == cudaSuccess);
 }
 
+std::ostream& operator<<(std::ostream &os, const HostSparseMat &obj){
+    double* tmp = new double[obj.num_rows * obj.num_cols];
+    for(int i = 0; i < obj.num_rows; i++) {
+        int start_col = obj.offsets[i];
+        int end_col = obj.offsets[i+1];
+        for(int j = start_col; j < end_col; j++) {
+            int idx = obj.cols[j];
+            tmp[i*obj.num_cols+idx] = obj.vals[j];
+        }
+    }
+
+    for(int i = 0; i < obj.num_rows; ++i){
+        for(int j = 0; j < obj.num_cols; ++j){
+            os << std::right << std::setw(6) << std::setprecision(4) << tmp[i*obj.num_cols + j] << "\t";
+        }
+        os << "\n";
+    }
+    return os;
+    free(tmp);
+}
+
+/*********************
+Function for DeviceSparseMat
+******************/
+
 DeviceSparseMat::DeviceSparseMat(
         int num_rows_, int num_cols_, int nnz_,
         int *offsets_, int *cols_, double *vals_)
@@ -327,7 +418,7 @@ void DeviceSparseMat::get_cusparse_descriptor(
                       CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F);
 }
 
-void test_spmm(){
+void test_cusparse_spmm(){
     // C = S @ A
     int S_num_rows = 4, S_num_cols = 4;
     int S_nnz = 9;
@@ -434,8 +525,21 @@ void test_ddmm() {
     }
 }
 
+void test_spmm() {
+    int num_rows = 5, num_cols = 5;
+    int nnz;
+    int *offsets, *cols;
+    double* vals;
+    MatrixGenerator mg;
+    mg.generate_sparse_csr(num_rows, num_cols, nnz, &cols, &offsets, &vals);
+    HostSparseMat smat(num_rows, num_cols, nnz, cols, offsets, vals);
+    std::cout << smat;
+
+}
 int main(){
-    // test_spmm();
-    test_ddmm();
+    srand(time(NULL));
+
+    test_spmm();
+    // test_ddmm();
     return 0;
 }
