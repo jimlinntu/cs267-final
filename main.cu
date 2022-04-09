@@ -93,14 +93,16 @@ struct DeviceSparseMat{
             int *offsets_, int *cols_, double *vals_);
     ~DeviceSparseMat();
     void get_cusparse_descriptor(cusparseSpMatDescr_t &mat);
+    void copy_to_host(HostSparseMat &h);
 };
 
 struct Algo{
     void spmm(HostSparseMat &, HostDenseMat &, HostDenseMat &);
-    void sddmm();
+    void sddmm(HostSparseMat &, HostDenseMat &, HostSparseMat &);
     void sddmm_spmm();
     void ddmm_seq(HostDenseMat &, HostDenseMat &, HostDenseMat &);
     void ddmm(HostDenseMat &, HostDenseMat &, HostDenseMat &);
+    void sddmm_seq(HostSparseMat &, HostDenseMat &, HostSparseMat &);
 };
 
 struct MatrixGenerator{
@@ -162,7 +164,61 @@ void Algo::spmm(HostSparseMat &A, HostDenseMat &B, HostDenseMat &C){
     dC.copy_to_host(C);
 }
 
-void Algo::sddmm(){
+__global__ void sddmm_kernel(double *S_vals, int *S_cols, int *S_offsets, int S_nnz, double *A_vals, double *C_vals, int A_h, int A_w) {
+    int idx = blockIdx.x * TILE_WIDTH + threadIdx.x;
+    if(idx >= S_nnz) return;
+    int col_C = S_cols[idx];
+    int row_C;
+
+    // for(int i = 0; i < S_nnz; i++)
+    //     printf("S_vals[%d]=%f S_cols[%d]=%d\n", i, S_vals[i], i, S_cols[i]);
+    
+    // for(int i = 0; i < A_h+1; i++)
+    //     printf("S_offsets[%d]=%d\n", i, S_offsets[i]);
+
+    int i = 0;
+    for(; i < A_h; i++) // find where the index sits
+        if(S_offsets[i] > idx)
+            break;
+    row_C = i-1;
+
+    // printf("row_C=%d col_C=%d\n", row_C, col_C);
+
+    double value = 0.0;
+    for(int i = 0; i < A_w; i++)
+        value += A_vals[row_C*A_w+i] * A_vals[col_C*A_w+i]; // A_vals[row_C][i] * At_vals[i][col_C] = A_vals[row_C][i] * A_vals[col_C][i]
+    C_vals[idx] = S_vals[idx] * value; // C_vals[idx]
+}
+
+void Algo::sddmm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
+    DeviceSparseMat dS, dC;
+    DeviceDenseMat dA;
+    S.to_device(dS);
+    A.to_device(dA);
+    C.to_device(dC);
+
+    int A_h = A.num_rows, A_w = A.num_cols;
+    int nnz = S.nnz;
+    dim3 dimGrid((nnz+TILE_WIDTH-1)/TILE_WIDTH);
+    dim3 dimBlock(TILE_WIDTH);
+
+    sddmm_kernel<<<dimGrid, dimBlock>>>(dS.vals, dS.cols, dS.offsets, dS.nnz, dA.vals, dC.vals, A_h, A_w);
+
+    dC.copy_to_host(C);
+}
+
+void Algo::sddmm_seq(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
+    for(int i = 0; i < C.num_rows; i++){
+        int row_C = i;
+        int start_idx = C.offsets[i], end_idx = C.offsets[i+1];
+        for(int j = start_idx; j < end_idx; j++) {
+            int col_C = C.cols[j];
+            double value = 0.0;
+            for(int k = 0; k < A.num_cols; k++)
+                value += A[row_C*A.num_cols+k] * A[col_C*A.num_cols+k];
+            C.vals[j] = value * S.vals[j];
+        }
+    }
 }
 
 void Algo::sddmm_spmm(){
@@ -427,6 +483,11 @@ void HostSparseMat::to_device(DeviceSparseMat &d){
 
 std::ostream& operator<<(std::ostream &os, const HostSparseMat &obj){
     double* tmp = new double[obj.num_rows * obj.num_cols];
+
+    for(int i = 0; i < obj.num_rows; ++i)
+        for(int j = 0; j < obj.num_cols; ++j)
+            tmp[i*obj.num_cols + j] = 0;
+
     for(int i = 0; i < obj.num_rows; i++) {
         int start_idx = obj.offsets[i];
         int end_idx = obj.offsets[i+1];
@@ -472,6 +533,12 @@ void DeviceSparseMat::get_cusparse_descriptor(
                       CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F);
 }
 
+void DeviceSparseMat::copy_to_host(HostSparseMat &h){
+    assert(h.num_rows == num_rows);
+    assert(h.num_cols == num_cols);
+    // suppose nnz does not change
+    assert(cudaMemcpy(h.vals, vals, nnz * sizeof(double), cudaMemcpyDeviceToHost) == cudaSuccess);
+}
 void test_cusparse_spmm(){
     // C = S @ A
     int S_num_rows = 4, S_num_cols = 4;
@@ -581,7 +648,7 @@ void test_ddmm() {
 
 void test_spmm() {
     MatrixGenerator mg;
-    Algo ag;
+    Algo alg;
 
 
     int A_hs[] = {4, 4, 4, 3, 13};
@@ -617,7 +684,7 @@ void test_spmm() {
         HostDenseMat A_dense(A_num_rows, A_num_cols, A_dense_vals);
         A.to_dense(A_dense);
 
-        ag.ddmm_seq(A_dense, B, C);
+        alg.ddmm_seq(A_dense, B, C);
         std::cout << "Sequential DDMM:" << std::endl;
 
         std::cout << C;
@@ -626,7 +693,7 @@ void test_spmm() {
         double* D_vals;
         mg.generate_dense(D_num_rows, D_num_cols, &D_vals);
         HostDenseMat D(D_num_rows, D_num_cols, D_vals);
-        ag.spmm(A, B, D);
+        alg.spmm(A, B, D);
         std::cout << "Blocked SpMM:" << std::endl;
 
         std::cout << D;
@@ -634,10 +701,51 @@ void test_spmm() {
         assert(C==D);
     }
 }
+
+void test_sddmm() {
+    MatrixGenerator mg;
+    Algo alg;
+
+    int S_num_rows = 3, S_num_cols = 3;
+    int S_nnz;
+    int *S_offsets, *S_cols;
+    double* S_vals;
+
+    mg.generate_sparse_csr(S_num_rows, S_num_cols, S_nnz, &S_offsets, &S_cols, &S_vals);
+    HostSparseMat S(S_num_rows, S_num_cols, S_nnz, S_offsets, S_cols, S_vals);
+    std::cout << S << std::endl;
+
+    int A_num_rows = 3, A_num_cols = 7;
+    double* A_vals;
+    mg.generate_dense(A_num_rows, A_num_cols, &A_vals);
+    HostDenseMat A(A_num_rows, A_num_cols, A_vals);
+    std::cout << A << std::endl;
+
+    int C_num_rows = S_num_rows, C_num_cols = S_num_cols; // same shape as S
+    int C_nnz = S_nnz;
+    int *C_offsets = new int[C_num_rows+1], *C_cols = new int[C_nnz];
+    double* C_vals = new double[C_nnz];
+
+    memcpy(C_offsets, S_offsets, (C_num_rows+1) * sizeof(int));
+    memcpy(C_cols, S_cols, C_nnz * sizeof(int));
+    memcpy(C_vals, S_vals, C_nnz * sizeof(double));
+
+    HostSparseMat C(C_num_rows, C_num_cols, C_nnz, C_offsets, C_cols, C_vals);
+
+    alg.sddmm_seq(S, A, C);
+
+    std::cout << C << std::endl;
+
+    alg.sddmm(S, A, C);
+
+    std::cout << C << std::endl;
+}
+
 int main(){
     srand(time(NULL));
 
     // test_spmm();
     // test_ddmm();
+    test_sddmm();
     return 0;
 }
