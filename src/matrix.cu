@@ -1,4 +1,4 @@
-#include "../include/matrix.cuh"
+#include "../include/algo.cuh"
 
 /*********************
 Function for MatrixGenerator

@@ -1,8 +1,5 @@
 #include "../include/algo.cuh"
 
-#define TILE_WIDTH 16
-#define SPMMSHM
-
 /*********************
 Function for CusparseAlgo
 ******************/
@@ -39,13 +36,14 @@ Function for Algo
 
 __global__ void spmm_kernel(double *A_vals, int *A_cols, int *A_offsets, int A_nnz, double *B_vals, double *C_vals, int A_h, int A_w, int B_h, int B_w) {
     int gy_C = blockIdx.y * 1 + threadIdx.y, gx_C = blockIdx.x * TILE_WIDTH + threadIdx.x;
-    int ly_C = threadIdx.y, lx_C = threadIdx.x;
-
+    
     if(gy_C >= A_h || gx_C >= B_w) return;
-
     double value = 0.0;
-
+    
     #ifdef SPMMSHM
+
+    int lx_C = threadIdx.x;
+    
     __shared__ int shm_col_A[TILE_WIDTH];
     __shared__ double shm_val_A[TILE_WIDTH];
     int gx_A_start = A_offsets[gy_C], gx_A_end = A_offsets[gy_C+1];
@@ -100,32 +98,6 @@ void Algo::spmm(HostSparseMat &A, HostDenseMat &B, HostDenseMat &C){
     dC.copy_to_host(C);
 }
 
-__global__ void sddmm_kernel(double *S_vals, int *S_cols, int *S_offsets, int S_nnz, double *A_vals, double *C_vals, int A_h, int A_w) {
-    int idx = blockIdx.x * TILE_WIDTH + threadIdx.x;
-    if(idx >= S_nnz) return;
-    int col_C = S_cols[idx];
-    int row_C;
-
-    // for(int i = 0; i < S_nnz; i++)
-    //     printf("S_vals[%d]=%f S_cols[%d]=%d\n", i, S_vals[i], i, S_cols[i]);
-    
-    // for(int i = 0; i < A_h+1; i++)
-    //     printf("S_offsets[%d]=%d\n", i, S_offsets[i]);
-
-    int i = 0;
-    for(; i < A_h; i++) // find where the index sits
-        if(S_offsets[i] > idx)
-            break;
-    row_C = i-1;
-
-    // printf("row_C=%d col_C=%d\n", row_C, col_C);
-
-    double value = 0.0;
-    for(int i = 0; i < A_w; i++)
-        value += A_vals[row_C*A_w+i] * A_vals[col_C*A_w+i]; // A_vals[row_C][i] * At_vals[i][col_C] = A_vals[row_C][i] * A_vals[col_C][i]
-    C_vals[idx] = S_vals[idx] * value; // C_vals[idx]
-}
-
 __global__ void sddmm_shm_kernel(double *S_vals, int *S_cols, double *A_vals, double *C_vals, int *tid_to_vid, int *tid_to_rid, int A_w) {
     int lx = threadIdx.x, gx = blockIdx.x * TILE_WIDTH + lx;
     // printf("lx=%d gx=%d\n", lx, gx);
@@ -155,7 +127,36 @@ __global__ void sddmm_shm_kernel(double *S_vals, int *S_cols, double *A_vals, do
         C_vals[tid_to_vid[gx]] = S_vals[tid_to_vid[gx]] * value;
 }
 
-void Algo::sddmm_shm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
+__global__ void sddmm_kernel(double *S_vals, int *S_cols, int *S_offsets, int S_nnz, double *A_vals, double *C_vals, int A_h, int A_w) {
+    int idx = blockIdx.x * TILE_WIDTH + threadIdx.x;
+    if(idx >= S_nnz) return;
+    int col_C = S_cols[idx];
+    int row_C;
+
+    // for(int i = 0; i < S_nnz; i++)
+    //     printf("S_vals[%d]=%f S_cols[%d]=%d\n", i, S_vals[i], i, S_cols[i]);
+    
+    // for(int i = 0; i < A_h+1; i++)
+    //     printf("S_offsets[%d]=%d\n", i, S_offsets[i]);
+
+    int i = 0;
+    for(; i < A_h; i++) // find where the index sits
+        if(S_offsets[i] > idx)
+            break;
+    row_C = i-1;
+
+    // printf("row_C=%d col_C=%d\n", row_C, col_C);
+
+    double value = 0.0;
+    for(int i = 0; i < A_w; i++)
+        value += A_vals[row_C*A_w+i] * A_vals[col_C*A_w+i]; // A_vals[row_C][i] * At_vals[i][col_C] = A_vals[row_C][i] * A_vals[col_C][i]
+    C_vals[idx] = S_vals[idx] * value; // C_vals[idx]
+}
+
+void Algo::sddmm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
+    
+    #ifdef SDDMMSHM
+
     DeviceSparseMat dS, dC;
     DeviceDenseMat dA;
     S.to_device(dS);
@@ -188,17 +189,6 @@ void Algo::sddmm_shm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
         }
     }
 
-    // std::cout << S;
-
-    // for(int i = 0; i < n_threads; i++) {
-    //     printf("tid_to_vid[%d]=%d\n", i, tid_to_vid[i]);
-    // }
-
-    // for(int i = 0; i < n_threads; i++) {
-    //     printf("tid_to_rid[%d]=%d\n", i, tid_to_rid[i]);
-    // }
-
-
     dim3 dimGrid((n_threads+TILE_WIDTH-1)/TILE_WIDTH);
     dim3 dimBlock(TILE_WIDTH);
     cudaMalloc(&tid_to_vid_d, sizeof(int) * n_threads);
@@ -206,7 +196,6 @@ void Algo::sddmm_shm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
     cudaMemcpy(tid_to_vid_d, tid_to_vid, sizeof(int) * n_threads, cudaMemcpyHostToDevice);
     cudaMemcpy(tid_to_rid_d, tid_to_rid, sizeof(int) * n_threads, cudaMemcpyHostToDevice);
 
-    // __global__ void sddmm_shm_kernel(double *S_vals, int *S_cols, double *A_vals, double *C_vals, int *tid_to_vid, int *tid_to_rid, int A_w)
     sddmm_shm_kernel<<<dimGrid, dimBlock>>>(dS.vals, dS.cols, dA.vals, dC.vals, tid_to_vid_d, tid_to_rid_d, dA.num_cols);
 
     free(tid_to_vid);
@@ -214,9 +203,9 @@ void Algo::sddmm_shm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
     cudaFree(tid_to_vid_d);
     cudaFree(tid_to_rid_d);
     dC.copy_to_host(C);
-}
 
-void Algo::sddmm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
+    #else
+
     DeviceSparseMat dS, dC;
     DeviceDenseMat dA;
     S.to_device(dS);
@@ -231,6 +220,7 @@ void Algo::sddmm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
     sddmm_kernel<<<dimGrid, dimBlock>>>(dS.vals, dS.cols, dS.offsets, dS.nnz, dA.vals, dC.vals, A_h, A_w);
 
     dC.copy_to_host(C);
+    #endif
 }
 
 void Algo::sddmm_seq(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){

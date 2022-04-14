@@ -1,6 +1,10 @@
 #include <assert.h>
 #include "./matrix.cuh"
 
+#define TILE_WIDTH 16
+#define SPMMSHM
+#define SDDMMSHM
+
 /*********************
 Header for struct 
 ******************/
