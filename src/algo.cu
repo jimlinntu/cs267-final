@@ -1,6 +1,7 @@
 #include "../include/algo.cuh"
 
-#define TILE_WIDTH 2
+#define TILE_WIDTH 16
+#define SPMMSHM
 
 /*********************
 Function for CusparseAlgo
@@ -36,28 +37,51 @@ Function for Algo
 ******************/
 // ---------------------------
 
-__global__ void spmm_kernel(double *A_vals, int *A_cols, int *A_offsets, double *B_vals, double *C_vals, int A_h, int A_w, int B_h, int B_w) {
+__global__ void spmm_kernel(double *A_vals, int *A_cols, int *A_offsets, int A_nnz, double *B_vals, double *C_vals, int A_h, int A_w, int B_h, int B_w) {
     int gy_C = blockIdx.y * 1 + threadIdx.y, gx_C = blockIdx.x * TILE_WIDTH + threadIdx.x;
-    
+    int ly_C = threadIdx.y, lx_C = threadIdx.x;
+
     if(gy_C >= A_h || gx_C >= B_w) return;
 
-    int row_C = gy_C;
-    int col_C = gx_C;
-
-    int start_idx = A_offsets[row_C], end_idx = A_offsets[row_C+1];
     double value = 0.0;
 
-    
-    for(int i = start_idx; i < end_idx; i++) {
+    #ifdef SPMMSHM
+    __shared__ int shm_col_A[TILE_WIDTH];
+    __shared__ double shm_val_A[TILE_WIDTH];
+    int gx_A_start = A_offsets[gy_C], gx_A_end = A_offsets[gy_C+1];
+
+    for(int m = 0; m < (gx_A_end-gx_A_start+TILE_WIDTH-1)/(TILE_WIDTH); m++) {
+        // m is the tile index
+        int start_idx = gx_A_start + m * TILE_WIDTH;
+
+        if(start_idx+lx_C < gx_A_end) {
+            shm_col_A[lx_C] = A_cols[start_idx+lx_C];
+            shm_val_A[lx_C] = A_vals[start_idx+lx_C];
+        } else { // out of range => mark value as zero so it will not be counted
+            shm_col_A[lx_C] = 0;
+            shm_val_A[lx_C] = 0;
+        }
+        __syncthreads();
+
+        for(int i = 0; i < TILE_WIDTH; i++) {
+            value += shm_val_A[i] * B_vals[shm_col_A[i]*B_w + gx_C];
+        }
+        __syncthreads();
+    }
+    #else
+    int start_idx = A_offsets[gy_C], end_idx = A_offsets[gy_C+1];
+
+    for(int i = start_idx; i < end_idx; i+=1) {
         int col_A = A_cols[i];
         double val_A = A_vals[i];
-        //printf("A[%d][%d]=%f", row_C, col_A, val_A);
-        //printf("B[%d][%d]=%f", col_A, col_C, B_vals[col_A*B_w + col_C]);
-        value += val_A * B_vals[col_A*B_w + col_C];
+        //printf("A[%d][%d]=%f", gy_C, col_A, val_A);
+        //printf("B[%d][%d]=%f", col_A, gx_C, B_vals[col_A*B_w + gx_C]);
+        value += val_A * B_vals[col_A*B_w + gx_C];
     }
+    #endif
 
-    // printf("C_vals[%d][%d]=%f\n", row_C, col_C, value);
-    C_vals[row_C*B_w + col_C] = value;
+    // printf("C_vals[%d][%d]=%f\n", gy_C, gx_C, value);
+    C_vals[gy_C*B_w + gx_C] = value;
 }
 
 void Algo::spmm(HostSparseMat &A, HostDenseMat &B, HostDenseMat &C){
@@ -71,7 +95,7 @@ void Algo::spmm(HostSparseMat &A, HostDenseMat &B, HostDenseMat &C){
     dim3 dimGrid((B_w+TILE_WIDTH-1)/TILE_WIDTH, A_h);
     dim3 dimBlock(TILE_WIDTH, 1);
 
-    spmm_kernel<<<dimGrid, dimBlock>>>(dA.vals, dA.cols, dA.offsets, dB.vals, dC.vals, A_h, A_w, B_h, B_w);
+    spmm_kernel<<<dimGrid, dimBlock>>>(dA.vals, dA.cols, dA.offsets, dA.nnz, dB.vals, dC.vals, A_h, A_w, B_h, B_w);
 
     dC.copy_to_host(C);
 }
