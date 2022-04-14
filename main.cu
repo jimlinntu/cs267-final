@@ -176,24 +176,24 @@ void test_spmm(int A_h, int A_w, int B_h, int B_w) {
     assert(C==D);
 }
 
-void test_sddmm() {
+void test_sddmm(int S_h, int S_w, int A_h, int A_w) {
     MatrixGenerator mg;
     Algo alg;
-
-    int S_num_rows = 3, S_num_cols = 3;
+    int start, end;
+    int S_num_rows = S_h, S_num_cols = S_w;
     int S_nnz;
     int *S_offsets, *S_cols;
     double* S_vals;
 
     mg.generate_sparse_csr(S_num_rows, S_num_cols, S_nnz, &S_offsets, &S_cols, &S_vals);
     HostSparseMat S(S_num_rows, S_num_cols, S_nnz, S_offsets, S_cols, S_vals);
-    std::cout << S << std::endl;
+    // std::cout << S << std::endl;
 
-    int A_num_rows = 3, A_num_cols = 7;
+    int A_num_rows = A_h, A_num_cols = A_w;
     double* A_vals;
     mg.generate_dense(A_num_rows, A_num_cols, &A_vals);
     HostDenseMat A(A_num_rows, A_num_cols, A_vals);
-    std::cout << A << std::endl;
+    // std::cout << A << std::endl;
 
     int C_num_rows = S_num_rows, C_num_cols = S_num_cols; // same shape as S
     int C_nnz = S_nnz;
@@ -206,21 +206,27 @@ void test_sddmm() {
 
     HostSparseMat C(C_num_rows, C_num_cols, C_nnz, C_offsets, C_cols, C_vals);
 
-    alg.sddmm_seq(S, A, C);
+    // start = clock();
+    // alg.sddmm_seq(S, A, C);
+    // end = clock();
+    // std::cout << "Sequential SDDMM takes " << ((float)end - start)/CLOCKS_PER_SEC << " seconds" << std::endl;
 
-    std::cout << C << std::endl;
+    // // std::cout << C << std::endl;
 
-    alg.sddmm(S, A, C);
+    start = clock();
+    alg.sddmm_shm(S, A, C);
+    end = clock();
+    std::cout << "Blocked Shm SDDMM takes " << ((float)end - start)/CLOCKS_PER_SEC << " seconds" << std::endl;
 
-    std::cout << C << std::endl;
+    // std::cout << C << std::endl;
 }
 
 int main(){
     srand(time(NULL));
 
     // test_cusparse_spmm();
-    test_spmm(1024, 1024, 1024, 1024);
+    // test_spmm(1024, 1024, 1024, 1024);
     // test_ddmm();
-    // test_sddmm();
+    test_sddmm(4096, 4096, 4096, 4096);
     return 0;
 }

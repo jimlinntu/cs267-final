@@ -9,6 +9,7 @@ Header for struct
 struct Algo{
     void spmm(HostSparseMat &, HostDenseMat &, HostDenseMat &);
     void sddmm(HostSparseMat &, HostDenseMat &, HostSparseMat &);
+    void sddmm_shm(HostSparseMat &, HostDenseMat &, HostSparseMat &);
     void sddmm_spmm();
     void ddmm_seq(HostDenseMat &, HostDenseMat &, HostDenseMat &);
     void ddmm(HostDenseMat &, HostDenseMat &, HostDenseMat &);

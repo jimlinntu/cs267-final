@@ -126,6 +126,96 @@ __global__ void sddmm_kernel(double *S_vals, int *S_cols, int *S_offsets, int S_
     C_vals[idx] = S_vals[idx] * value; // C_vals[idx]
 }
 
+__global__ void sddmm_shm_kernel(double *S_vals, int *S_cols, double *A_vals, double *C_vals, int *tid_to_vid, int *tid_to_rid, int A_w) {
+    int lx = threadIdx.x, gx = blockIdx.x * TILE_WIDTH + lx;
+    // printf("lx=%d gx=%d\n", lx, gx);
+    // printf("tid_to_vid[%d]=%d\n", gx, tid_to_vid[gx]);
+    // printf("tid_to_rid[%d]=%d\n", gx, tid_to_rid[gx]);
+    // if(tid_to_vid[gx] < 0) return; // this thread does nothing
+
+    __shared__ double As[TILE_WIDTH];
+
+    int row_C = tid_to_rid[gx];
+    double value = 0.0;
+
+    for(int m = 0; m < (A_w + TILE_WIDTH - 1)/(TILE_WIDTH); m++) {
+        As[lx] = A_vals[row_C*A_w+lx+m*TILE_WIDTH]; // A_vals[row_C][lx+m*TILE_WIDTH]
+        __syncthreads();
+        if(tid_to_vid[gx] != -1) {
+            int col_C = S_cols[tid_to_vid[gx]];
+            for(int i = 0; i < TILE_WIDTH; i++) {
+                // printf("gx=%d A_vals[%d][%d]=%f A_vals[%d][%d]=%f\n", gx, row_C, lx+m*TILE_WIDTH, A_vals[row_C*A_w+lx+m*TILE_WIDTH], col_C, lx + m * TILE_WIDTH, A_vals[col_C * A_w + lx + m * TILE_WIDTH]);
+                value += As[i] * A_vals[col_C * A_w + i + m * TILE_WIDTH]; // A_vals[row_C][i+m*TILE_WIDTH] * At_vals[i+m*TILE_WIDTH][col_C]
+            }
+        }
+        __syncthreads();
+    }
+
+    if(tid_to_vid[gx] != -1)
+        C_vals[tid_to_vid[gx]] = S_vals[tid_to_vid[gx]] * value;
+}
+
+void Algo::sddmm_shm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
+    DeviceSparseMat dS, dC;
+    DeviceDenseMat dA;
+    S.to_device(dS);
+    A.to_device(dA);
+    C.to_device(dC);
+
+    int n_threads = 0;
+    for(int i = 0; i < S.num_rows; i++) {
+        int start_idx = S.offsets[i], end_idx = S.offsets[i+1];
+        n_threads += ((end_idx - start_idx + TILE_WIDTH - 1) / TILE_WIDTH) * TILE_WIDTH;
+    }
+
+    int *tid_to_vid = new int[n_threads]; // thread id to value id
+    int *tid_to_rid = new int[n_threads]; // thread id to row id
+    int *tid_to_vid_d;
+    int *tid_to_rid_d;
+
+    int k = 0;
+    for(int i = 0; i < S.num_rows; i++) {
+        int start_idx = S.offsets[i], end_idx = S.offsets[i+1];
+        for(int j = start_idx; j < end_idx; j++) {
+            tid_to_vid[k] = j;
+            tid_to_rid[k] = i;
+            k += 1;
+        }
+        for(int j = end_idx; j < start_idx + ((end_idx - start_idx + TILE_WIDTH - 1) / TILE_WIDTH) * (TILE_WIDTH); j++) {
+            tid_to_vid[k] = -1;
+            tid_to_rid[k] = i;
+            k += 1;
+        }
+    }
+
+    // std::cout << S;
+
+    // for(int i = 0; i < n_threads; i++) {
+    //     printf("tid_to_vid[%d]=%d\n", i, tid_to_vid[i]);
+    // }
+
+    // for(int i = 0; i < n_threads; i++) {
+    //     printf("tid_to_rid[%d]=%d\n", i, tid_to_rid[i]);
+    // }
+
+
+    dim3 dimGrid((n_threads+TILE_WIDTH-1)/TILE_WIDTH);
+    dim3 dimBlock(TILE_WIDTH);
+    cudaMalloc(&tid_to_vid_d, sizeof(int) * n_threads);
+    cudaMalloc(&tid_to_rid_d, sizeof(int) * n_threads);
+    cudaMemcpy(tid_to_vid_d, tid_to_vid, sizeof(int) * n_threads, cudaMemcpyHostToDevice);
+    cudaMemcpy(tid_to_rid_d, tid_to_rid, sizeof(int) * n_threads, cudaMemcpyHostToDevice);
+
+    // __global__ void sddmm_shm_kernel(double *S_vals, int *S_cols, double *A_vals, double *C_vals, int *tid_to_vid, int *tid_to_rid, int A_w)
+    sddmm_shm_kernel<<<dimGrid, dimBlock>>>(dS.vals, dS.cols, dA.vals, dC.vals, tid_to_vid_d, tid_to_rid_d, dA.num_cols);
+
+    free(tid_to_vid);
+    free(tid_to_rid);
+    cudaFree(tid_to_vid_d);
+    cudaFree(tid_to_rid_d);
+    dC.copy_to_host(C);
+}
+
 void Algo::sddmm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
     DeviceSparseMat dS, dC;
     DeviceDenseMat dA;
