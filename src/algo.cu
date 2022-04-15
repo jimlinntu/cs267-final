@@ -23,10 +23,56 @@ void CusparseAlgo::spmm(
     assert(cudaFree(dbuf) == cudaSuccess);
 }
 
-void CusparseAlgo::sddmm(){
+void CusparseAlgo::sddmm(
+        cusparseHandle_t &handle,
+        cusparseSpMatDescr_t &C,
+        cusparseDnMatDescr_t &A, cusparseDnMatDescr_t &B){
+    double alpha = 1.0, beta = 0.;
+    size_t bufsize = 0;
+    cusparseConstrainedGeMM_bufferSize(handle,
+            CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE,
+            &alpha, A, B, &beta, C, CUDA_R_64F,
+            &bufsize);
+    void *dbuf = NULL;
+    assert(cudaMalloc(&dbuf, bufsize) == cudaSuccess);
+    assert(cusparseConstrainedGeMM(handle,
+            CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE, 
+            &alpha, A, B, &beta, C, CUDA_R_64F, dbuf) == cudaSuccess);
+    assert(cudaFree(dbuf) == cudaSuccess);
 }
 
-void CusparseAlgo::sddmm_spmm(){
+void CusparseAlgo::sddmm_spmm(
+        cusparseHandle_t &handle,
+        cusparseSpMatDescr_t &C,
+        cusparseDnMatDescr_t &A, 
+        cusparseDnMatDescr_t &B,
+        cusparseDnMatDescr_t &D, 
+        cusparseDnMatDescr_t &E){
+    //SDDMM:    (AB) * C    
+    double alpha = 1.0, beta = 0.;
+    size_t bufsize = 0;
+    cusparseConstrainedGeMM_bufferSize(handle,
+            CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE,
+            &alpha, A, B, &beta, C, CUDA_R_64F,
+            &bufsize);
+    void *dbuf = NULL;
+    assert(cudaMalloc(&dbuf, bufsize) == cudaSuccess);
+    assert(cusparseConstrainedGeMM(handle,
+            CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE, 
+            &alpha, A, B, &beta, C, CUDA_R_64F, dbuf) == cudaSuccess);
+    assert(cudaFree(dbuf) == cudaSuccess);
+
+    //SpMM:     CD = E
+    cusparseSpMM_bufferSize(handle,
+            CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE,
+            &alpha, C, D, &beta, E, CUDA_R_64F, CUSPARSE_SPMM_ALG_DEFAULT,
+            &bufsize);
+    // void *dbuf = NULL;
+    assert(cudaMalloc(&dbuf, bufsize) == cudaSuccess);
+    assert(cusparseSpMM(handle,
+            CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE, 
+            &alpha, C, D, &beta, E, CUDA_R_64F, CUSPARSE_SPMM_ALG_DEFAULT, dbuf) == cudaSuccess);
+    assert(cudaFree(dbuf) == cudaSuccess);
 }
 
 /*********************
@@ -47,8 +93,9 @@ __global__ void spmm_kernel(double *A_vals, int *A_cols, int *A_offsets, int A_n
     __shared__ int shm_col_A[TILE_WIDTH];
     __shared__ double shm_val_A[TILE_WIDTH];
     int gx_A_start = A_offsets[gy_C], gx_A_end = A_offsets[gy_C+1];
+    int n_steps = (gx_A_end-gx_A_start+TILE_WIDTH-1)/(TILE_WIDTH);
 
-    for(int m = 0; m < (gx_A_end-gx_A_start+TILE_WIDTH-1)/(TILE_WIDTH); m++) {
+    for(int m = 0; m < n_steps; m++) {
         // m is the tile index
         int start_idx = gx_A_start + m * TILE_WIDTH;
 
@@ -97,6 +144,7 @@ void Algo::spmm(HostSparseMat &A, HostDenseMat &B, HostDenseMat &C){
 
     dC.copy_to_host(C);
 }
+
 
 __global__ void sddmm_shm_kernel(double *S_vals, int *S_cols, double *A_vals, double *C_vals, int *tid_to_vid, int *tid_to_rid, int A_w) {
     int lx = threadIdx.x, gx = blockIdx.x * TILE_WIDTH + lx;

@@ -98,6 +98,11 @@ DeviceDenseMat::~DeviceDenseMat(){
 void DeviceDenseMat::get_cusparse_descriptor(cusparseDnMatDescr_t &mat){
     assert(cusparseCreateDnMat(&mat, num_rows, num_cols, num_cols, vals, CUDA_R_64F, CUSPARSE_ORDER_ROW) == cudaSuccess);
 }
+
+void DeviceDenseMat::get_cusparse_col_descriptor(cusparseDnMatDescr_t &mat){
+    assert(cusparseCreateDnMat(&mat, num_rows, num_cols, num_rows, vals, CUDA_R_64F, CUSPARSE_ORDER_COL) == cudaSuccess);
+}
+
 void DeviceDenseMat::copy_to_host(HostDenseMat &h){
     assert(h.num_rows == num_rows);
     assert(h.num_cols == num_cols);
@@ -205,6 +210,7 @@ void DeviceSparseMat::get_cusparse_descriptor(
                       CUSPARSE_INDEX_32I, CUSPARSE_INDEX_32I,
                       CUSPARSE_INDEX_BASE_ZERO, CUDA_R_64F);
 }
+
 
 void DeviceSparseMat::copy_to_host(HostSparseMat &h){
     assert(h.num_rows == num_rows);
