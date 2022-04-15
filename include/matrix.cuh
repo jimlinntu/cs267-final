@@ -17,7 +17,7 @@ struct HostDenseMat{
     int num_rows, num_cols;
     double *vals;
     bool to_delete;
-    HostDenseMat(int num_rows_, int num_cols_, double *vals_);
+    HostDenseMat(int num_rows_, int num_cols_, double *vals_, bool to_delete_);
     ~HostDenseMat();
     void to_device(DeviceDenseMat &d);
     friend std::ostream& operator<<(std::ostream &os, const HostDenseMat &obj);
@@ -66,7 +66,7 @@ struct HostSparseMat{
     friend std::ostream& operator<<(std::ostream &os, const HostSparseMat &obj);
     HostSparseMat(
             int num_rows_, int num_cols_, int nnz_,
-            int *offsets_, int *cols_, double *vals_);
+            int *offsets_, int *cols_, double *vals_, bool to_delete_);
     ~HostSparseMat();
     void to_device(DeviceSparseMat &d);
     void to_dense(HostDenseMat &mat);

@@ -61,8 +61,8 @@ void MatrixGenerator::generate_dense(int num_rows_, int num_cols_, double** vals
 Function for HostDenseMat
 ******************/
 
-HostDenseMat::HostDenseMat(int num_rows_, int num_cols_, double* vals_)
-        :num_rows(num_rows_), num_cols(num_cols_), vals(vals_), to_delete(false){
+HostDenseMat::HostDenseMat(int num_rows_, int num_cols_, double* vals_, bool to_delete_)
+        :num_rows(num_rows_), num_cols(num_cols_), vals(vals_), to_delete(to_delete_){
 }
 
 HostDenseMat::~HostDenseMat(){
@@ -115,9 +115,9 @@ Function for HostSparseMat
 
 HostSparseMat::HostSparseMat(
             int num_rows_, int num_cols_, int nnz_,
-            int *offsets_, int *cols_, double *vals_)
+            int *offsets_, int *cols_, double *vals_, bool to_delete_)
     :num_rows(num_rows_), num_cols(num_cols_), nnz(nnz_),
-     offsets(offsets_), cols(cols_), vals(vals_), to_delete(false){
+     offsets(offsets_), cols(cols_), vals(vals_), to_delete(to_delete_){
 }
 
 HostSparseMat::~HostSparseMat(){

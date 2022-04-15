@@ -23,19 +23,19 @@ void test_correctness_ddmm(int A_h, int A_w, int B_h, int B_w) {
     int A_num_rows = A_h, A_num_cols = A_w;
     double* A_vals = NULL;
     mg.generate_dense(A_num_rows, A_num_cols, &A_vals);
-    HostDenseMat A(A_num_rows, A_num_cols, A_vals);
+    HostDenseMat A(A_num_rows, A_num_cols, A_vals, true);
 
     // matrix B
     int B_num_rows = B_h, B_num_cols = B_w;
     double* B_vals = NULL;
     mg.generate_dense(B_num_rows, B_num_cols, &B_vals);
-    HostDenseMat B(B_num_rows, B_num_cols, B_vals);
+    HostDenseMat B(B_num_rows, B_num_cols, B_vals, true);
 
     // matrix C
     int C_num_rows = A_num_rows, C_num_cols = B_num_cols;
     double* C_vals = NULL;
     mg.generate_dense(C_num_rows, C_num_cols, &C_vals);
-    HostDenseMat C(C_num_rows, C_num_cols, C_vals);
+    HostDenseMat C(C_num_rows, C_num_cols, C_vals, true);
 
     alg.ddmm_seq(A, B, C);
 
@@ -43,7 +43,7 @@ void test_correctness_ddmm(int A_h, int A_w, int B_h, int B_w) {
     int D_num_rows = A_num_rows, D_num_cols = B_num_cols;
     double* D_vals = NULL;
     mg.generate_dense(D_num_rows, D_num_cols, &D_vals);
-    HostDenseMat D(D_num_rows, D_num_cols, D_vals);
+    HostDenseMat D(D_num_rows, D_num_cols, D_vals, true);
 
     alg.ddmm(A, B, D);
     // std::cout << D;
@@ -61,31 +61,31 @@ void test_correctness_spmm(int A_h, int A_w, int B_h, int B_w) {
     double* A_vals;
 
     mg.generate_sparse_csr(A_num_rows, A_num_cols, A_nnz, &A_offsets, &A_cols, &A_vals);
-    HostSparseMat A(A_num_rows, A_num_cols, A_nnz, A_cols, A_offsets, A_vals);
+    HostSparseMat A(A_num_rows, A_num_cols, A_nnz, A_cols, A_offsets, A_vals, true);
     //std::cout << A << std::endl;
 
     int B_num_rows = B_h, B_num_cols = B_w;
     double* B_vals;
     mg.generate_dense(B_num_rows, B_num_cols, &B_vals);
-    HostDenseMat B(B_num_rows, B_num_cols, B_vals);
+    HostDenseMat B(B_num_rows, B_num_cols, B_vals, true);
     //std::cout << B << std::endl;
     
     int C_num_rows = A_h, C_num_cols = B_w;
     double* C_vals;
     mg.generate_dense(C_num_rows, C_num_cols, &C_vals);
-    HostDenseMat C(C_num_rows, C_num_cols, C_vals);
+    HostDenseMat C(C_num_rows, C_num_cols, C_vals, true);
 
 
     double* A_dense_vals;
     mg.generate_dense(A_num_rows, A_num_cols, &A_dense_vals);
-    HostDenseMat A_dense(A_num_rows, A_num_cols, A_dense_vals);
+    HostDenseMat A_dense(A_num_rows, A_num_cols, A_dense_vals, true);
     A.to_dense(A_dense);
     alg.ddmm_seq(A_dense, B, C);
     
     int D_num_rows = A_h, D_num_cols = B_w;
     double* D_vals;
     mg.generate_dense(D_num_rows, D_num_cols, &D_vals);
-    HostDenseMat D(D_num_rows, D_num_cols, D_vals);
+    HostDenseMat D(D_num_rows, D_num_cols, D_vals, true);
     alg.spmm(A, B, D);
 
     assert(C==D);
@@ -105,17 +105,17 @@ void test_speed_spmm(int S_h, int S_w, int A_h, int A_w) {
     double* S_vals;
 
     mg.generate_sparse_csr(S_num_rows, S_num_cols, S_nnz, &S_offsets, &S_cols, &S_vals);
-    HostSparseMat S(S_num_rows, S_num_cols, S_nnz, S_offsets, S_cols, S_vals);
+    HostSparseMat S(S_num_rows, S_num_cols, S_nnz, S_offsets, S_cols, S_vals, true);
 
     int A_num_rows = A_h, A_num_cols = A_w;
     double* A_vals;
     mg.generate_dense(A_num_rows, A_num_cols, &A_vals);
-    HostDenseMat A(A_num_rows, A_num_cols, A_vals);
+    HostDenseMat A(A_num_rows, A_num_cols, A_vals, true);
 
     int C_num_rows = S_h, C_num_cols = A_w;
     double* C_vals;
     mg.generate_dense(C_num_rows, C_num_cols, &C_vals);
-    HostDenseMat C(C_num_rows, C_num_cols, C_vals);
+    HostDenseMat C(C_num_rows, C_num_cols, C_vals, true);
 
     start = clock();
     alg.spmm(S, A, C);
@@ -133,13 +133,13 @@ void test_speed_sddmm(int S_h, int S_w, int A_h, int A_w) {
     double* S_vals;
 
     mg.generate_sparse_csr(S_num_rows, S_num_cols, S_nnz, &S_offsets, &S_cols, &S_vals);
-    HostSparseMat S(S_num_rows, S_num_cols, S_nnz, S_offsets, S_cols, S_vals);
+    HostSparseMat S(S_num_rows, S_num_cols, S_nnz, S_offsets, S_cols, S_vals, true);
     // std::cout << S << std::endl;
 
     int A_num_rows = A_h, A_num_cols = A_w;
     double* A_vals;
     mg.generate_dense(A_num_rows, A_num_cols, &A_vals);
-    HostDenseMat A(A_num_rows, A_num_cols, A_vals);
+    HostDenseMat A(A_num_rows, A_num_cols, A_vals, true);
     // std::cout << A << std::endl;
 
     int C_num_rows = S_num_rows, C_num_cols = S_num_cols; // same shape as S
@@ -151,7 +151,7 @@ void test_speed_sddmm(int S_h, int S_w, int A_h, int A_w) {
     memcpy(C_cols, S_cols, C_nnz * sizeof(int));
     memcpy(C_vals, S_vals, C_nnz * sizeof(double));
 
-    HostSparseMat C(C_num_rows, C_num_cols, C_nnz, C_offsets, C_cols, C_vals);
+    HostSparseMat C(C_num_rows, C_num_cols, C_nnz, C_offsets, C_cols, C_vals, true);
 
     start = clock();
     alg.sddmm(S, A, C);
@@ -167,17 +167,17 @@ void test_speed_cusparse_spmm(int S_h, int S_w, int A_h, int A_w){
     double *S_vals;
     mg.generate_sparse_csr(S_num_rows, S_num_cols, S_nnz, &S_offsets, &S_cols, &S_vals);
     HostSparseMat S(S_num_rows, S_num_cols, S_nnz,
-                  S_offsets, S_cols, S_vals);
+                  S_offsets, S_cols, S_vals, true);
 
     int A_num_rows = A_h, A_num_cols = A_w;
     double *A_vals;
     mg.generate_dense(A_num_rows, A_num_cols, &A_vals);
-    HostDenseMat A(A_num_rows, A_num_cols, A_vals);
+    HostDenseMat A(A_num_rows, A_num_cols, A_vals, true);
 
     int C_num_rows = S_h, C_num_cols = A_w;
     double *C_vals;
     mg.generate_dense(C_num_rows, C_num_cols, &C_vals);
-    HostDenseMat C(C_num_rows, C_num_cols, C_vals);
+    HostDenseMat C(C_num_rows, C_num_cols, C_vals, true);
 
     int start, end;
     start = clock();
@@ -233,18 +233,18 @@ void test_speed_cusparse_sddmm(int S_h, int S_w, int A_h, int A_w){
     double *S_vals;
     mg.generate_sparse_csr(S_num_rows, S_num_cols, S_nnz, &S_offsets, &S_cols, &S_vals);
     HostSparseMat S(S_num_rows, S_num_cols, S_nnz,
-                  S_offsets, S_cols, S_vals);
+                  S_offsets, S_cols, S_vals, true);
 
     int A_num_rows = A_h, A_num_cols = A_w;
     double *A_vals;
     mg.generate_dense(A_num_rows, A_num_cols, &A_vals);
-    HostDenseMat A(A_num_rows, A_num_cols, A_vals);
+    HostDenseMat A(A_num_rows, A_num_cols, A_vals, true);
     
     
     int B_num_rows = A_w, B_num_cols = A_h;
     double *B_vals;
     mg.generate_dense(B_num_rows, B_num_cols, &B_vals);
-    HostDenseMat B(B_num_rows, B_num_cols, B_vals);
+    HostDenseMat B(B_num_rows, B_num_cols, B_vals, true);
 
     start = clock();
 
