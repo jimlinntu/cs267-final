@@ -1,4 +1,4 @@
-#include "../include/algo.cuh"
+#include "../include/matrix.cuh"
 
 /*********************
 Function for MatrixGenerator
@@ -37,7 +37,7 @@ void MatrixGenerator::generate_sparse_csr(int num_rows_, int num_cols_, int &nnz
         (*offsets)[i] = vals_cursor;
         for(int j = 0; j < num_cols_; j++) {
             // printf("i=%d j=%d\n", i, j);
-            if(tmp_vals[i*num_cols_+j] > epsilon) {
+            if(tmp_vals[i*num_cols_+j] >= epsilon) {
                 // printf("i=%d j=%d vals_cursor=%d\n", i, j, vals_cursor);
                 (*vals)[vals_cursor++] = tmp_vals[i*num_cols_+j];
                 (*cols)[cols_cursor++] = j;
@@ -45,6 +45,7 @@ void MatrixGenerator::generate_sparse_csr(int num_rows_, int num_cols_, int &nnz
         }
     }
     (*offsets)[num_rows_] = vals_cursor;
+    assert(vals_cursor == nnz);
 
     free(tmp_vals);
 }
