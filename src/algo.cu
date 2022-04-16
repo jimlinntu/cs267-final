@@ -1,5 +1,7 @@
 #include "../include/algo.cuh"
 
+#define MIN(x, y) (((x) < (y))? (x):(y))
+
 /*********************
 Function for CusparseAlgo
 ******************/
@@ -270,6 +272,117 @@ void Algo::sddmm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
     dC.copy_to_host(C);
     #endif
 }
+
+__global__ void count_num_blocks_in_each_row(
+        int S_num_rows, int *S_offsets, int *block_offsets){
+
+    int row_id = blockDim.x * blockIdx.x + threadIdx.x;
+    if(row_id >= S_num_rows) return;
+
+    int nnz_col = S_offsets[row_id+1] - S_offsets[row_id];
+    // += the number of blocks needed for this row
+    atomicAdd(&block_offsets[row_id+1], (nnz_col + TILE_WIDTH - 1) / TILE_WIDTH);
+}
+
+__global__ void sddmm_block_over_nnz_in_same_row_kernel(
+    int S_num_rows, int *S_offsets, int *S_cols, double *S_vals,
+    int A_num_cols, double *A_vals,
+    double *C_vals,
+    int *block_offsets){
+
+    // Each block must first search which row is belongs to by binary search
+    int block_idx = blockIdx.x;
+    int l = 0, r = S_num_rows;
+    int mid;
+    // NOTE: there is no loop divergence across threads in the same block
+    // so I think it will not hurt the performance 
+
+    __shared__ int shm_row_idx;
+    // only one thread needs to compute this
+    if(threadIdx.x == 0){
+        // l = upperbound(block_offsets, block_idx)
+        // find the smallest(first) idx s.t. block_offsets[idx] > block_idx
+        while(l < r){
+            mid = (l + r) / 2;
+            if(block_offsets[mid] <= block_idx){
+                l = mid+1;
+            }else{
+                r = mid;
+            }
+        }
+        assert(l <= S_num_rows);
+        shm_row_idx = l-1;
+    }
+    __syncthreads();
+
+    int row_idx = shm_row_idx; // copy to this thread's private space
+    int start = S_offsets[row_idx], end = S_offsets[row_idx+1];
+
+    int _j = (blockIdx.x - block_offsets[row_idx]) * TILE_WIDTH + threadIdx.x;
+    int j = -1;
+    if(start + _j < end) j = S_cols[start + _j];
+
+    __shared__ double A_shm[TILE_WIDTH];
+
+    double value = 0.;
+    for(int k = 0; k < A_num_cols; k += TILE_WIDTH){
+        int my_k = k + threadIdx.x;
+        if(my_k < A_num_cols){
+            A_shm[threadIdx.x] = A_vals[row_idx * A_num_cols + my_k];
+        }
+        __syncthreads();
+
+        const int bound_tile_width = MIN(TILE_WIDTH, A_num_cols - k);
+
+        if(j != -1){
+            for(int kk = 0; kk < bound_tile_width; ++kk){
+                value += A_shm[kk] * A_vals[j * A_num_cols + k + kk];
+            }
+        }
+        __syncthreads();
+    }
+
+    // Write back
+    if(j != -1) C_vals[start + _j] = S_vals[start + _j] * value;
+}
+void Algo::sddmm_block_over_nnz_but_in_same_row(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
+    DeviceSparseMat dS, dC;
+    DeviceDenseMat dA;
+
+    S.to_device(dS);
+    A.to_device(dA);
+    C.to_device(dC);
+
+    // block_offsets[row_id] = # of blocks needed this row
+    int *block_offsets;
+
+    assert(cudaMalloc(&block_offsets, sizeof(int) * (S.num_rows+1)) == cudaSuccess);
+    // set 0 initially
+    assert(cudaMemset(block_offsets, 0, sizeof(int) * (S.num_rows+1)) == cudaSuccess);
+
+    const int num_threads = 256;
+    // Parallelize over # of rows
+    count_num_blocks_in_each_row<<<(S.num_rows + num_threads - 1)/ num_threads, num_threads>>>(
+                S.num_rows, dS.offsets, block_offsets);
+    // prefix sum
+    thrust::device_ptr<int> ptr(block_offsets);
+    thrust::inclusive_scan(ptr+1, ptr+S.num_rows+1, ptr+1);
+
+    int num_blocks = 0;
+
+    // Only copy the total number of blocks back
+    cudaMemcpy(&num_blocks, block_offsets + S.num_rows, sizeof(int), cudaMemcpyDeviceToHost);
+
+    sddmm_block_over_nnz_in_same_row_kernel<<<num_blocks, TILE_WIDTH>>>(
+            S.num_rows, dS.offsets, dS.cols, dS.vals,
+            A.num_cols, dS.vals, dC.vals,
+            block_offsets);
+
+    dC.copy_to_host(C);
+
+    assert(cudaFree(block_offsets));
+}
+
 
 void Algo::sddmm_seq(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
     for(int i = 0; i < C.num_rows; i++){
