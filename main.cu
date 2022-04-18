@@ -136,13 +136,16 @@ void test_correctness_sddmm_multiple_times(){
         HostSparseMat C(S_num_rows, S_num_rows, S_nnz, C_offsets, C_cols, C_vals, true);
         HostSparseMat C_cusparse(S_num_rows, S_num_rows, S_nnz, C_offsets, C_cols, C_vals_cusparse, false);
 
-        /* algo.sddmm_block_over_nnz_but_in_same_row(S, A, C); */
-        algo.sddmm_seq(S, A, C);
-
-        // Run cusparsesddmm
+        // Run cusparsesddmm as the ground truth
         cualgo.sddmm(S, A, C_cusparse);
 
+        // Test a bunch of functions here:
+        algo.sddmm_block_over_nnz_but_in_same_row(S, A, C);
         // Compare cusparsesddmm result to our kernel's result
+        assert(C == C_cusparse);
+
+        std::fill(C.vals, C.vals+S_nnz, 0);
+        algo.sddmm_seq(S, A, C);
         assert(C == C_cusparse);
 
         // Clean up

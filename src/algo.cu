@@ -327,8 +327,6 @@ __global__ void sddmm_block_over_nnz_in_same_row_kernel(
     int block_idx = blockIdx.x;
     int l = 0, r = S_num_rows;
     int mid;
-    // NOTE: there is no loop divergence across threads in the same block
-    // so I think it will not hurt the performance 
 
     __shared__ int shm_row_idx;
     // only one thread needs to compute this
@@ -398,6 +396,7 @@ void Algo::sddmm_block_over_nnz_but_in_same_row(HostSparseMat &S, HostDenseMat &
     count_num_blocks_in_each_row<<<(S.num_rows + num_threads - 1)/ num_threads, num_threads>>>(
                 S.num_rows, dS.offsets, block_offsets);
     // prefix sum
+    // block_offsets[i] = # of blocks that are in [0, i) rows
     thrust::device_ptr<int> ptr(block_offsets);
     thrust::inclusive_scan(ptr+1, ptr+S.num_rows+1, ptr+1);
 
@@ -408,12 +407,12 @@ void Algo::sddmm_block_over_nnz_but_in_same_row(HostSparseMat &S, HostDenseMat &
 
     sddmm_block_over_nnz_in_same_row_kernel<<<num_blocks, TILE_WIDTH>>>(
             S.num_rows, dS.offsets, dS.cols, dS.vals,
-            A.num_cols, dS.vals, dC.vals,
-            block_offsets);
+            A.num_cols, dA.vals,
+            dC.vals, block_offsets);
 
     dC.copy_to_host(C);
 
-    assert(cudaFree(block_offsets));
+    assert(cudaFree(block_offsets) == cudaSuccess);
 }
 
 
