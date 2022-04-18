@@ -31,14 +31,10 @@ void MatrixGenerator::generate_sparse_csr(int num_rows_, int num_cols_, int &nnz
     int vals_cursor = 0;
     int cols_cursor = 0;
 
-    // printf("nnz=%d nr=%d nc=%d\n", nnz, num_rows_, num_cols_);
-
     for(int i = 0; i < num_rows_; i++){
         (*offsets)[i] = vals_cursor;
         for(int j = 0; j < num_cols_; j++) {
-            // printf("i=%d j=%d\n", i, j);
             if(tmp_vals[i*num_cols_+j] >= epsilon) {
-                // printf("i=%d j=%d vals_cursor=%d\n", i, j, vals_cursor);
                 (*vals)[vals_cursor++] = tmp_vals[i*num_cols_+j];
                 (*cols)[cols_cursor++] = j;
             }
@@ -75,14 +71,10 @@ void MatrixGenerator::generate_binary_sparse_csr(int num_rows_, int num_cols_, i
     int vals_cursor = 0;
     int cols_cursor = 0;
 
-    // printf("nnz=%d nr=%d nc=%d\n", nnz, num_rows_, num_cols_);
-
     for(int i = 0; i < num_rows_; i++){
         (*offsets)[i] = vals_cursor;
         for(int j = 0; j < num_cols_; j++) {
-            // printf("i=%d j=%d\n", i, j);
             if(tmp_vals[i*num_cols_+j] > 0.) {
-                // printf("i=%d j=%d vals_cursor=%d\n", i, j, vals_cursor);
                 (*vals)[vals_cursor++] = tmp_vals[i*num_cols_+j];
                 (*cols)[cols_cursor++] = j;
             }

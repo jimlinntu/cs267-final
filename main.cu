@@ -47,7 +47,6 @@ void test_correctness_ddmm(int A_h, int A_w, int B_h, int B_w) {
     HostDenseMat D(D_num_rows, D_num_cols, D_vals, true);
 
     alg.ddmm(A, B, D);
-    // std::cout << D;
 
     assert(C == D);
 }
@@ -204,13 +203,11 @@ void test_speed_sddmm(int S_h, int S_w, int A_h, int A_w) {
 
     mg.generate_sparse_csr(S_num_rows, S_num_cols, S_nnz, &S_offsets, &S_cols, &S_vals);
     HostSparseMat S(S_num_rows, S_num_cols, S_nnz, S_offsets, S_cols, S_vals, true);
-    // std::cout << S << std::endl;
 
     int A_num_rows = A_h, A_num_cols = A_w;
     double* A_vals;
     mg.generate_dense(A_num_rows, A_num_cols, &A_vals);
     HostDenseMat A(A_num_rows, A_num_cols, A_vals, true);
-    // std::cout << A << std::endl;
 
     int C_num_rows = S_num_rows, C_num_cols = S_num_cols; // same shape as S
     int C_nnz = S_nnz;
@@ -279,9 +276,6 @@ void test_speed_cusparse_spmm(int S_h, int S_w, int A_h, int A_w){
         // copy back
         dC.copy_to_host(C);
 
-        // Print the result
-        // std::cout << C;
-
         assert(cusparseDestroy(handle) == cudaSuccess);
         assert(cusparseDestroySpMat(S_des) == cudaSuccess);
         assert(cusparseDestroyDnMat(A_des) == cudaSuccess);
@@ -347,9 +341,6 @@ void test_speed_cusparse_sddmm(int S_h, int S_w, int A_h, int A_w){
 
         // copy back
         dS.copy_to_host(S);
-
-        // Print the result
-        // std::cout << S;
 
         assert(cusparseDestroy(handle) == cudaSuccess);
         assert(cusparseDestroySpMat(S_des) == cudaSuccess);
