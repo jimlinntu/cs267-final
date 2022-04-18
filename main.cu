@@ -155,6 +155,10 @@ void test_correctness_sddmm_multiple_times(){
         algo.sddmm_block_over_nnz(S, A, C);
         assert(C == C_cusparse);
 
+        std::fill(C.vals, C.vals+S_nnz, 0);
+        algo.sddmm(S, A, C);
+        assert(C == C_cusparse);
+
         // Clean up
         delete[] C_vals_cusparse;
     }
@@ -365,14 +369,14 @@ int main(){
 
     test_correctness_sddmm_multiple_times();
 
-    Benchmarker bm;
-    BenchmarkResult sddmm_result;
+    // Benchmarker bm;
+    // BenchmarkResult sddmm_result;
 
-    bm.benchmark_sddmm(sddmm_result);
+    // bm.benchmark_sddmm(sddmm_result);
 
-    std::cout << "====== sddmm benchmark result: =====\n";
-    std::cout << sddmm_result;
-    std::cout << "====================================\n";
+    // std::cout << "====== sddmm benchmark result: =====\n";
+    // std::cout << sddmm_result;
+    // std::cout << "====================================\n";
 
     // test_correctness_ddmm(12, 16, 16, 12);
     // test_correctness_spmm(12, 12, 12, 12);

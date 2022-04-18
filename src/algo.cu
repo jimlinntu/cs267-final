@@ -194,11 +194,16 @@ __global__ void sddmm_shm_kernel(double *S_vals, int *S_cols, double *A_vals, do
     double value = 0.0;
 
     for(int m = 0; m < (A_w + TILE_WIDTH - 1)/(TILE_WIDTH); m++) {
-        As[lx] = A_vals[row_C*A_w+lx+m*TILE_WIDTH]; // A_vals[row_C][lx+m*TILE_WIDTH]
+        if(lx+m*TILE_WIDTH < A_w)
+            As[lx] = A_vals[row_C*A_w+lx+m*TILE_WIDTH]; // A_vals[row_C][lx+m*TILE_WIDTH]
+        else
+            As[lx] = 0; // out of border
+        
         __syncthreads();
         if(tid_to_vid[gx] != -1) {
+            int n_steps = min(TILE_WIDTH, A_w-m*TILE_WIDTH);
             int col_C = S_cols[tid_to_vid[gx]];
-            for(int i = 0; i < TILE_WIDTH; i++) {
+            for(int i = 0; i < n_steps; i++) {
                 // printf("gx=%d A_vals[%d][%d]=%f A_vals[%d][%d]=%f\n", gx, row_C, lx+m*TILE_WIDTH, A_vals[row_C*A_w+lx+m*TILE_WIDTH], col_C, lx + m * TILE_WIDTH, A_vals[col_C * A_w + lx + m * TILE_WIDTH]);
                 value += As[i] * A_vals[col_C * A_w + i + m * TILE_WIDTH]; // A_vals[row_C][i+m*TILE_WIDTH] * At_vals[i+m*TILE_WIDTH][col_C]
             }
