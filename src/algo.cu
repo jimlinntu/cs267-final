@@ -46,6 +46,8 @@ void CusparseAlgo::sddmm(
             CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_TRANSPOSE,
             &alpha, A, A, &beta, S,
             CUDA_R_64F, CUSPARSE_SDDMM_ALG_DEFAULT, dbuf) == cudaSuccess);
+
+    assert(cudaFree(dbuf) == cudaSuccess);
 }
 
 void CusparseAlgo::sddmm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
@@ -424,6 +426,68 @@ void Algo::sddmm_block_over_nnz_but_in_same_row(HostSparseMat &S, HostDenseMat &
     assert(cudaFree(block_offsets) == cudaSuccess);
 }
 
+
+__global__ void sddmm_launch_kernel_as_dense_matrix_kernel(
+        int S_num_rows, int *S_offsets, int *S_cols, double *S_vals,
+        int A_num_cols, double *A_vals,
+        double *C_vals){
+
+    int i = blockIdx.x;
+    int _j_first = blockIdx.y * blockDim.y;
+    int _j = blockIdx.y * blockDim.y + threadIdx.y;
+
+    int start = S_offsets[i], end = S_offsets[i+1];
+    // if the first thread in this block has nothing to do,
+    // this block has no work to do
+    if(start + _j_first >= end) return;
+
+    int j = (start + _j < end)? (S_cols[start + _j]):(-1);
+
+    __shared__ double A_shm[TILE_WIDTH];
+
+    double value = 0.;
+    for(int k = 0; k < A_num_cols; k += TILE_WIDTH){
+        int my_k = k + threadIdx.y;
+        if(my_k < A_num_cols){
+            A_shm[threadIdx.y] = A_vals[i * A_num_cols + my_k];
+        }
+        __syncthreads();
+
+        const int bound_tile_width = MIN(TILE_WIDTH, A_num_cols - k);
+
+        if(j != -1){
+            for(int kk = 0; kk < bound_tile_width; ++kk){
+                value += A_shm[kk] * A_vals[j * A_num_cols + (k + kk)];
+            }
+        }
+        __syncthreads();
+    }
+
+    // Write to C
+    if(j != -1) C_vals[start + _j] = S_vals[start + _j] * value;
+}
+
+void Algo::sddmm_launch_kernel_as_dense_matrix(
+        HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
+
+    DeviceSparseMat dS, dC;
+    DeviceDenseMat dA;
+
+    S.to_device(dS);
+    A.to_device(dA);
+    C.to_device(dC);
+
+    // Launch the kernel as if it is a dense matrix
+    dim3 threadsPerBlock(1, TILE_WIDTH);
+    dim3 numBlocks(S.num_rows, (S.num_cols + TILE_WIDTH - 1) / TILE_WIDTH);
+
+    sddmm_launch_kernel_as_dense_matrix_kernel<<<numBlocks, threadsPerBlock>>>(
+        S.num_rows, dS.offsets, dS.cols, dS.vals,
+        A.num_cols, dA.vals,
+        dC.vals);
+
+    dC.copy_to_host(C);
+}
 
 void Algo::sddmm_seq(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
     for(int i = 0; i < C.num_rows; i++){

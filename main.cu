@@ -16,6 +16,7 @@
 #include <limits> 
 #include <time.h>
 
+/*
 void test_correctness_ddmm(int A_h, int A_w, int B_h, int B_w) {
     MatrixGenerator mg;
     Algo alg;
@@ -50,6 +51,7 @@ void test_correctness_ddmm(int A_h, int A_w, int B_h, int B_w) {
 
     assert(C == D);
 }
+*/
 
 void test_correctness_spmm(int A_h, int A_w, int B_h, int B_w) {
     MatrixGenerator mg;
@@ -156,6 +158,10 @@ void test_correctness_sddmm_multiple_times(){
 
         std::fill(C.vals, C.vals+S_nnz, 0);
         algo.sddmm(S, A, C);
+        assert(C == C_cusparse);
+
+        std::fill(C.vals, C.vals+S_nnz, 0);
+        algo.sddmm_launch_kernel_as_dense_matrix(S, A, C);
         assert(C == C_cusparse);
 
         // Clean up
@@ -360,14 +366,14 @@ int main(){
 
     test_correctness_sddmm_multiple_times();
 
-    // Benchmarker bm;
-    // BenchmarkResult sddmm_result;
+    Benchmarker bm;
+    BenchmarkResult sddmm_result;
 
-    // bm.benchmark_sddmm(sddmm_result);
+    bm.benchmark_sddmm(sddmm_result);
 
-    // std::cout << "====== sddmm benchmark result: =====\n";
-    // std::cout << sddmm_result;
-    // std::cout << "====================================\n";
+    std::cout << "====== sddmm benchmark result: =====\n";
+    std::cout << sddmm_result;
+    std::cout << "====================================\n";
 
     // test_correctness_ddmm(12, 16, 16, 12);
     // test_correctness_spmm(12, 12, 12, 12);
