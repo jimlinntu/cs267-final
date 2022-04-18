@@ -8,7 +8,7 @@ INC          := -I$(CUDA_TOOLKIT)/include
 SRC_DIR = src
 OBJ_DIR = bin
 INC_DIR = include
-OBJS = $(OBJ_DIR)/algo.o $(OBJ_DIR)/matrix.o
+OBJS = $(OBJ_DIR)/algo.o $(OBJ_DIR)/matrix.o $(OBJ_DIR)/benchmark.o
 EXEC = main
 
 all: $(OBJS) main.o

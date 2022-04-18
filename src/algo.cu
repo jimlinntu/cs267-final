@@ -237,8 +237,6 @@ __global__ void sddmm_kernel(double *S_vals, int *S_cols, int *S_offsets, int S_
 }
 
 void Algo::sddmm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
-    
-    #ifdef SDDMMSHM
 
     DeviceSparseMat dS, dC;
     DeviceDenseMat dA;
@@ -287,8 +285,9 @@ void Algo::sddmm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
     cudaFree(tid_to_rid_d);
     dC.copy_to_host(C);
 
-    #else
+}
 
+void Algo::sddmm_block_over_nnz(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
     DeviceSparseMat dS, dC;
     DeviceDenseMat dA;
     S.to_device(dS);
@@ -303,7 +302,6 @@ void Algo::sddmm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
     sddmm_kernel<<<dimGrid, dimBlock>>>(dS.vals, dS.cols, dS.offsets, dS.nnz, dA.vals, dC.vals, A_h, A_w);
 
     dC.copy_to_host(C);
-    #endif
 }
 
 __global__ void count_num_blocks_in_each_row(

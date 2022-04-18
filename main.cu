@@ -5,6 +5,7 @@
 
 #include "./include/algo.cuh"
 #include "./include/matrix.cuh"
+#include "./include/benchmark.cuh"
 #include <cuda.h>
 #include <cusparse.h>
 #include <stdio.h>
@@ -144,8 +145,14 @@ void test_correctness_sddmm_multiple_times(){
         // Compare cusparsesddmm result to our kernel's result
         assert(C == C_cusparse);
 
+        if(false){
+            std::fill(C.vals, C.vals+S_nnz, 0);
+            algo.sddmm_seq(S, A, C); // this one is pretty slow, turn it true if you want to test it
+            assert(C == C_cusparse);
+        }
+
         std::fill(C.vals, C.vals+S_nnz, 0);
-        algo.sddmm_seq(S, A, C);
+        algo.sddmm_block_over_nnz(S, A, C);
         assert(C == C_cusparse);
 
         // Clean up
@@ -357,6 +364,15 @@ int main(){
     int SIZE = 2048;
 
     test_correctness_sddmm_multiple_times();
+
+    Benchmarker bm;
+    BenchmarkResult sddmm_result;
+
+    bm.benchmark_sddmm(sddmm_result);
+
+    std::cout << "====== sddmm benchmark result: =====\n";
+    std::cout << sddmm_result;
+    std::cout << "====================================\n";
 
     // test_correctness_ddmm(12, 16, 16, 12);
     // test_correctness_spmm(12, 12, 12, 12);
