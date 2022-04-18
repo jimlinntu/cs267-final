@@ -70,6 +70,7 @@ struct HostSparseMat{
     ~HostSparseMat();
     void to_device(DeviceSparseMat &d);
     void to_dense(HostDenseMat &mat);
+    bool operator==(const HostSparseMat &r);
 };
 
 struct DeviceSparseMat{
@@ -89,6 +90,7 @@ struct DeviceSparseMat{
 
 struct MatrixGenerator{
     void generate_sparse_csr(int, int, int&, int**, int**, double**);
+    void generate_binary_sparse_csr(int, int, int&, int**, int**, double**);
     void generate_dense(int, int, double**);
 };
 

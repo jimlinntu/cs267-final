@@ -50,6 +50,51 @@ void MatrixGenerator::generate_sparse_csr(int num_rows_, int num_cols_, int &nnz
     free(tmp_vals);
 }
 
+void MatrixGenerator::generate_binary_sparse_csr(int num_rows_, int num_cols_, int &nnz, int** offsets, int** cols, double** vals) {
+    double *tmp_vals = new double[num_rows_ * num_cols_];
+    double epsilon = 1e-4;
+    double zero_ratio = 0.7;
+    double val;
+    nnz = 0;
+
+    for(int i = 0; i < num_rows_; i++)
+        for(int j = 0; j < num_cols_; j++) {
+            double p = ((double)rand()/(double)RAND_MAX);
+            if(p < zero_ratio)
+                val = 0.0;
+            else{
+                val = 1.0;
+                nnz++;
+            }
+
+            tmp_vals[i * num_cols_ + j] = val;
+        }
+    
+    *vals = new double[nnz];
+    *cols = new int[nnz];
+    *offsets = new int[num_rows_+1];
+    int vals_cursor = 0;
+    int cols_cursor = 0;
+
+    // printf("nnz=%d nr=%d nc=%d\n", nnz, num_rows_, num_cols_);
+
+    for(int i = 0; i < num_rows_; i++){
+        (*offsets)[i] = vals_cursor;
+        for(int j = 0; j < num_cols_; j++) {
+            // printf("i=%d j=%d\n", i, j);
+            if(tmp_vals[i*num_cols_+j] > 0.) {
+                // printf("i=%d j=%d vals_cursor=%d\n", i, j, vals_cursor);
+                (*vals)[vals_cursor++] = tmp_vals[i*num_cols_+j];
+                (*cols)[cols_cursor++] = j;
+            }
+        }
+    }
+    (*offsets)[num_rows_] = vals_cursor;
+    assert(vals_cursor == nnz);
+
+    free(tmp_vals);
+}
+
 void MatrixGenerator::generate_dense(int num_rows_, int num_cols_, double** vals){
     *vals = new double[num_rows_ * num_cols_];
     for(int i = 0; i < num_rows_; i++)
@@ -68,7 +113,7 @@ HostDenseMat::HostDenseMat(int num_rows_, int num_cols_, double* vals_, bool to_
 
 HostDenseMat::~HostDenseMat(){
     if(!to_delete) return;
-    delete vals;
+    delete[] vals;
 }
 
 void HostDenseMat::to_device(DeviceDenseMat &d){
@@ -124,9 +169,9 @@ HostSparseMat::HostSparseMat(
 HostSparseMat::~HostSparseMat(){
     if(!to_delete) return;
 
-    delete offsets;
-    delete cols;
-    delete vals;
+    delete[] offsets;
+    delete[] cols;
+    delete[] vals;
 }
 
 void HostSparseMat::to_dense(HostDenseMat &mat){
@@ -142,6 +187,22 @@ void HostSparseMat::to_dense(HostDenseMat &mat){
             mat.vals[i*num_cols+col] = vals[j];
         }
     }
+}
+
+bool HostSparseMat::operator==(const HostSparseMat &r){
+    if(num_rows != r.num_rows || num_cols != r.num_cols) return false;
+    if(nnz != r.nnz) return false;
+    if(offsets[num_rows] != r.offsets[num_rows]) return false;
+
+    for(int i = 0; i < num_rows; ++i){
+        if(offsets[i] != r.offsets[i]) return false;
+    }
+    const double epsilon = 1e-4;
+    for(int i = 0; i < nnz; ++i){
+        if(cols[i] != r.cols[i]) return false;
+        if(fabs(vals[i]-r.vals[i]) > epsilon) return false;
+    }
+    return true;
 }
 
 void HostSparseMat::to_device(DeviceSparseMat &d){

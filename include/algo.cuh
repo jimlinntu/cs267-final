@@ -35,9 +35,11 @@ struct CusparseAlgo{
         cusparseDnMatDescr_t &C);
     void sddmm(
         cusparseHandle_t &handle,
-        cusparseSpMatDescr_t &C,
-        cusparseDnMatDescr_t &A,
-        cusparseDnMatDescr_t &B);
+        cusparseSpMatDescr_t &S,
+        cusparseDnMatDescr_t &A);
+    // overload
+    void sddmm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C);
+
     void sddmm_spmm(
         cusparseHandle_t &handle,
         cusparseSpMatDescr_t &C,

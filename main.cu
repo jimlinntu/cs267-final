@@ -94,6 +94,62 @@ void test_correctness_spmm(int A_h, int A_w, int B_h, int B_w) {
 void test_correctness_sddmm(int S_h, int S_w, int A_h, int A_w) {
 }
 
+void test_correctness_sddmm_multiple_times(){
+
+    const int num_testcases = 100;
+
+    MatrixGenerator mg;
+    // Initialize algorithms
+    Algo algo;
+    CusparseAlgo cualgo;
+
+    for(int i = 0; i < num_testcases; ++i){
+        // [100, 10000)
+        int l = 100, r = 1000;
+        int S_num_rows = l + rand() % (r-l);
+        // [100, 10000)
+        int A_num_cols = l + rand() % (r-l);
+
+        // Generate a square sparse matrix
+        int S_nnz;
+        int *S_offsets;
+        int *S_cols;
+        double *S_vals;
+        // Because cusparseSDDMM only support binary sparse matrix
+        mg.generate_binary_sparse_csr(S_num_rows, S_num_rows, S_nnz, &S_offsets, &S_cols, &S_vals);
+
+        double *A_vals;
+        // Generate a dense matrix
+        mg.generate_dense(S_num_rows, A_num_cols, &A_vals);
+
+        // Create the output sparse matrix
+        int *C_offsets = new int[S_num_rows+1];
+        int *C_cols = new int[S_nnz];
+        double *C_vals = new double[S_nnz];
+        double *C_vals_cusparse = new double[S_nnz];
+
+        memcpy(C_offsets, S_offsets, (S_num_rows+1) * sizeof(int));
+        memcpy(C_cols, S_cols, (S_nnz) * sizeof(int));
+
+        HostSparseMat S(S_num_rows, S_num_rows, S_nnz, S_offsets, S_cols, S_vals, true);
+        HostDenseMat A(S_num_rows, A_num_cols, A_vals, true);
+        HostSparseMat C(S_num_rows, S_num_rows, S_nnz, C_offsets, C_cols, C_vals, true);
+        HostSparseMat C_cusparse(S_num_rows, S_num_rows, S_nnz, C_offsets, C_cols, C_vals_cusparse, false);
+
+        /* algo.sddmm_block_over_nnz_but_in_same_row(S, A, C); */
+        algo.sddmm_seq(S, A, C);
+
+        // Run cusparsesddmm
+        cualgo.sddmm(S, A, C_cusparse);
+
+        // Compare cusparsesddmm result to our kernel's result
+        assert(C == C_cusparse);
+
+        // Clean up
+        delete[] C_vals_cusparse;
+    }
+}
+
 void test_speed_spmm(int S_h, int S_w, int A_h, int A_w) {
     MatrixGenerator mg;
     Algo alg;
@@ -223,6 +279,8 @@ void test_speed_cusparse_spmm(int S_h, int S_w, int A_h, int A_w){
     }
 }
 
+// FIXME
+/*
 void test_speed_cusparse_sddmm(int S_h, int S_w, int A_h, int A_w){
     int start, end;
 
@@ -288,15 +346,19 @@ void test_speed_cusparse_sddmm(int S_h, int S_w, int A_h, int A_w){
         std::cout << "Cuparse SDDMM takes " << ((float)end - start)/CLOCKS_PER_SEC << " seconds" << std::endl;
     }
 }
+*/
 
 int main(){
-    srand(time(NULL));
+    // Fix the random seed so that things are reproducible
+    srand(9999);
     int SIZE = 2048;
+
+    test_correctness_sddmm_multiple_times();
 
     // test_correctness_ddmm(12, 16, 16, 12);
     // test_correctness_spmm(12, 12, 12, 12);
-    test_speed_spmm(SIZE, SIZE, SIZE, SIZE);
-    test_speed_sddmm(SIZE, SIZE, SIZE, SIZE);
+    /* test_speed_spmm(SIZE, SIZE, SIZE, SIZE); */
+    /* test_speed_sddmm(SIZE, SIZE, SIZE, SIZE); */
     // test_speed_cusparse_spmm(SIZE, SIZE, SIZE, SIZE);
     // test_speed_cusparse_sddmm(SIZE, SIZE, SIZE, SIZE);
     return 0;

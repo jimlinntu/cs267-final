@@ -27,20 +27,53 @@ void CusparseAlgo::spmm(
 
 void CusparseAlgo::sddmm(
         cusparseHandle_t &handle,
-        cusparseSpMatDescr_t &C,
-        cusparseDnMatDescr_t &A, cusparseDnMatDescr_t &B){
+        cusparseSpMatDescr_t &S,
+        cusparseDnMatDescr_t &A){
+
+    
     double alpha = 1.0, beta = 0.;
     size_t bufsize = 0;
-    cusparseConstrainedGeMM_bufferSize(handle,
-            CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE,
-            &alpha, A, B, &beta, C, CUDA_R_64F,
-            &bufsize);
+
+    // Get the buffer size
+    assert(cusparseSDDMM_bufferSize(handle,
+            CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_TRANSPOSE,
+            &alpha, A, A, &beta, S,
+            CUDA_R_64F, CUSPARSE_SDDMM_ALG_DEFAULT, &bufsize) == cudaSuccess);
+
     void *dbuf = NULL;
     assert(cudaMalloc(&dbuf, bufsize) == cudaSuccess);
-    assert(cusparseConstrainedGeMM(handle,
-            CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE, 
-            &alpha, A, B, &beta, C, CUDA_R_64F, dbuf) == cudaSuccess);
-    assert(cudaFree(dbuf) == cudaSuccess);
+    assert(cusparseSDDMM(handle,
+            CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_TRANSPOSE,
+            &alpha, A, A, &beta, S,
+            CUDA_R_64F, CUSPARSE_SDDMM_ALG_DEFAULT, dbuf) == cudaSuccess);
+}
+
+void CusparseAlgo::sddmm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
+    // NOTE: S will be modified inplace
+
+    DeviceSparseMat dS;
+    DeviceDenseMat dA;
+
+    S.to_device(dS);
+    A.to_device(dA);
+
+    cusparseHandle_t handle = NULL;
+    assert(cusparseCreate(&handle) == cudaSuccess);
+
+    cusparseSpMatDescr_t S_des;
+    cusparseDnMatDescr_t A_des;
+
+    dS.get_cusparse_descriptor(S_des);
+    dA.get_cusparse_descriptor(A_des);
+
+    this->sddmm(handle, S_des, A_des);
+
+    // copy the result(modified inplace in dS) back to C
+    dS.copy_to_host(C);
+
+    assert(cusparseDestroySpMat(S_des) == cudaSuccess);
+    assert(cusparseDestroyDnMat(A_des) == cudaSuccess);
+    assert(cusparseDestroy(handle) == cudaSuccess);
 }
 
 void CusparseAlgo::sddmm_spmm(
