@@ -113,15 +113,45 @@ void CusparseAlgo::sddmm_spmm(
 /*********************
 Function for Algo
 ******************/
-// ---------------------------
+
+__global__ void spmm_no_shm_kernel(double *A_vals, int *A_cols, int *A_offsets, int A_nnz, double *B_vals, double *C_vals, int A_h, int A_w, int B_h, int B_w) {
+    int gy_C = blockIdx.y * 1 + threadIdx.y, gx_C = blockIdx.x * TILE_WIDTH + threadIdx.x;
+    
+    if(gy_C >= A_h || gx_C >= B_w) return;
+    double value = 0.0;
+    
+    int start_idx = A_offsets[gy_C], end_idx = A_offsets[gy_C+1];
+
+    for(int i = start_idx; i < end_idx; i+=1) {
+        int col_A = A_cols[i];
+        double val_A = A_vals[i];
+        value += val_A * B_vals[col_A*B_w + gx_C];
+    }
+
+    C_vals[gy_C*B_w + gx_C] = value;
+}
+
+void Algo::spmm_no_shm(HostSparseMat &A, HostDenseMat &B, HostDenseMat &C){
+    DeviceSparseMat dA;
+    DeviceDenseMat dB, dC;
+    A.to_device(dA);
+    B.to_device(dB);
+    C.to_device(dC);
+
+    int A_h = A.num_rows, A_w = A.num_cols, B_h = B.num_rows, B_w = B.num_cols;
+    dim3 dimGrid((B_w+TILE_WIDTH-1)/TILE_WIDTH, A_h);
+    dim3 dimBlock(TILE_WIDTH, 1);
+
+    spmm_no_shm_kernel<<<dimGrid, dimBlock>>>(dA.vals, dA.cols, dA.offsets, dA.nnz, dB.vals, dC.vals, A_h, A_w, B_h, B_w);
+
+    dC.copy_to_host(C);
+}
 
 __global__ void spmm_kernel(double *A_vals, int *A_cols, int *A_offsets, int A_nnz, double *B_vals, double *C_vals, int A_h, int A_w, int B_h, int B_w) {
     int gy_C = blockIdx.y * 1 + threadIdx.y, gx_C = blockIdx.x * TILE_WIDTH + threadIdx.x;
     
     if(gy_C >= A_h || gx_C >= B_w) return;
     double value = 0.0;
-    
-    #ifdef SPMMSHM
 
     int lx_C = threadIdx.x;
     
@@ -148,15 +178,6 @@ __global__ void spmm_kernel(double *A_vals, int *A_cols, int *A_offsets, int A_n
         }
         __syncthreads();
     }
-    #else
-    int start_idx = A_offsets[gy_C], end_idx = A_offsets[gy_C+1];
-
-    for(int i = start_idx; i < end_idx; i+=1) {
-        int col_A = A_cols[i];
-        double val_A = A_vals[i];
-        value += val_A * B_vals[col_A*B_w + gx_C];
-    }
-    #endif
 
     C_vals[gy_C*B_w + gx_C] = value;
 }
@@ -434,60 +455,4 @@ void Algo::ddmm_seq(HostDenseMat &A, HostDenseMat &B, HostDenseMat &C){
             }
         }
     }
-}
-
-
-__global__ void ddmm_kernel(double* A, double* B, double* C, int A_h, int A_w, int B_h, int B_w) {
-    __shared__ double As[TILE_WIDTH][TILE_WIDTH];
-    __shared__ double Bs[TILE_WIDTH][TILE_WIDTH];
-
-    int gx_C = blockIdx.x * TILE_WIDTH + threadIdx.x;
-    int gy_C = blockIdx.y * TILE_WIDTH + threadIdx.y;
-    double value_C = 0.0;
-
-    for(int m = 0; m < (A_w+TILE_WIDTH-1) / TILE_WIDTH; m++) {
-        int lx_A = threadIdx.x;
-        int ly_A = threadIdx.y;
-        int gx_A = m * TILE_WIDTH + threadIdx.x;
-        int gy_A = gy_C;
-        if(gy_A < A_h && gx_A < A_w)
-            As[ly_A][lx_A] = A[gy_A * A_w + gx_A];
-        else // out of range
-            As[ly_A][lx_A] = 0.0;
-
-        int lx_B = threadIdx.x;
-        int ly_B = threadIdx.y;
-        int gx_B = gx_C;
-        int gy_B = m * TILE_WIDTH + threadIdx.y;
-        if(gy_B < B_h && gx_B < B_w)
-            Bs[ly_B][lx_B] = B[gy_B * B_w + gx_B];
-        else
-            Bs[ly_B][lx_B] = 0.0;
-        
-        __syncthreads();
-
-        for(int k = 0; k < TILE_WIDTH; k++)
-            value_C += As[ly_A][k] * Bs[k][lx_B];
-
-        __syncthreads();
-
-    }
-
-    if(gy_C < A_h && gx_C < B_w) // make sure in range
-        C[gy_C * B_w + gx_C] = value_C;
-    
-}
-
-void Algo::ddmm(HostDenseMat &A, HostDenseMat &B, HostDenseMat &C){
-    DeviceDenseMat d_A, d_B, d_C;
-    A.to_device(d_A);
-    B.to_device(d_B);
-    C.to_device(d_C);
-
-    int A_h = A.num_rows, A_w = A.num_cols, B_h = B.num_rows, B_w = B.num_cols;
-    dim3 dimGrid((B_w+TILE_WIDTH-1)/TILE_WIDTH, (A_h+TILE_WIDTH-1)/TILE_WIDTH);
-    dim3 dimBlock(TILE_WIDTH, TILE_WIDTH);
-    ddmm_kernel<<<dimGrid, dimBlock>>>(d_A.vals, d_B.vals, d_C.vals, A_h, A_w, B_h, B_w);
-
-    d_C.copy_to_host(C);
 }

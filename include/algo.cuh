@@ -14,6 +14,7 @@ Header for struct
 
 struct Algo{
     void spmm(HostSparseMat &, HostDenseMat &, HostDenseMat &);
+    void spmm_no_shm(HostSparseMat &, HostDenseMat &, HostDenseMat &);
     void sddmm(HostSparseMat &, HostDenseMat &, HostSparseMat &);
     void sddmm_block_over_nnz(HostSparseMat &, HostDenseMat &, HostSparseMat &);
     void sddmm_block_over_nnz_but_in_same_row(HostSparseMat &, HostDenseMat &, HostSparseMat &);
@@ -21,7 +22,6 @@ struct Algo{
     void sddmm_dynamic_parallelism(); // https://developer.nvidia.com/blog/cuda-dynamic-parallelism-api-principles/
     void sddmm_spmm();
     void ddmm_seq(HostDenseMat &, HostDenseMat &, HostDenseMat &);
-    void ddmm(HostDenseMat &, HostDenseMat &, HostDenseMat &);
     void sddmm_seq(HostSparseMat &, HostDenseMat &, HostSparseMat &);
 };
 
