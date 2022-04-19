@@ -56,6 +56,11 @@ void Benchmarker::benchmark_sddmm(BenchmarkResult &bresult){
         m["sddmm_launch_kernel_as_dense_matrix"].push_back((double)(end - start) / CLOCKS_PER_SEC);
 
         start = clock();
+        algo.sddmm_block_over_nnz_if_same_row_use_shm(S, A, C);
+        end = clock();
+        m["sddmm_block_over_nnz_if_same_row_use_shm"].push_back((double)(end - start) / CLOCKS_PER_SEC);
+
+        start = clock();
         cualgo.sddmm(S, A, C);
         end = clock();
         m["cusparsesddmm"].push_back((double)(end - start) / CLOCKS_PER_SEC);
@@ -64,6 +69,7 @@ void Benchmarker::benchmark_sddmm(BenchmarkResult &bresult){
     bresult.result["sddmm_block_over_nnz_wo_shm"] = avg(m["sddmm_block_over_nnz_wo_shm"]);
     bresult.result["sddmm_block_over_nnz_but_in_same_row"] = avg(m["sddmm_block_over_nnz_but_in_same_row"]);
     bresult.result["sddmm_launch_kernel_as_dense_matrix"] = avg(m["sddmm_launch_kernel_as_dense_matrix"]);
+    bresult.result["sddmm_block_over_nnz_if_same_row_use_shm"] = avg(m["sddmm_block_over_nnz_if_same_row_use_shm"]);
     bresult.result["cusparsesddmm"] = avg(m["cusparsesddmm"]);
 }
 

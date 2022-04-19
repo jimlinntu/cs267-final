@@ -164,6 +164,10 @@ void test_correctness_sddmm_multiple_times(){
         algo.sddmm_launch_kernel_as_dense_matrix(S, A, C);
         assert(C == C_cusparse);
 
+        std::fill(C.vals, C.vals+S_nnz, 0);
+        algo.sddmm_block_over_nnz_if_same_row_use_shm(S, A, C);
+        assert(C == C_cusparse);
+
         // Clean up
         delete[] C_vals_cusparse;
     }

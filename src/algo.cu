@@ -489,6 +489,91 @@ void Algo::sddmm_launch_kernel_as_dense_matrix(
     dC.copy_to_host(C);
 }
 
+__global__ void sddmm_block_over_nnz_if_same_row_use_shm_kernel(
+        int S_num_rows, int S_nnz, int *S_offsets, int *S_cols, double *S_vals,
+        int A_num_cols, double *A_vals,
+        double *C_vals){
+
+    int _j = blockIdx.x * TILE_WIDTH + threadIdx.x;
+    int bound = MIN(TILE_WIDTH, S_nnz - blockIdx.x * TILE_WIDTH);
+
+    __shared__ int row_indices[TILE_WIDTH];
+    __shared__ double A_shm[TILE_WIDTH];
+
+    // find this element's row idx (i.e. i)
+    int l = 0, r = S_num_rows;
+    int mid;
+
+    // Binary search to find the row idx
+    if(threadIdx.x < bound){
+        while(l < r){
+            mid = (l+r)/2;
+            if(S_offsets[mid] <= _j){
+                l = mid+1;
+            }else{
+                r = mid;
+            }
+        }
+        assert(l <= S_num_rows);
+        row_indices[threadIdx.x] = l-1;
+    }
+    __syncthreads();
+
+    double value = 0.;
+    // If the first row_idx and the last row_idx are the same,
+    // we can use shared memory (and all threads will enter this branch)
+    if(row_indices[0] == row_indices[bound-1]){
+        int i = row_indices[0]; // load from the shared mem
+        int j = (threadIdx.x < bound)?(S_cols[_j]):(-1);
+
+        for(int k = 0; k < A_num_cols; k += TILE_WIDTH){
+            int my_k = k + threadIdx.x;
+            if(my_k < A_num_cols){
+                A_shm[threadIdx.x] = A_vals[i * A_num_cols + my_k];
+            }
+            __syncthreads();
+            if(j != -1){
+                const int bound_tile_width = MIN(TILE_WIDTH, A_num_cols - k);
+                for(int kk = 0; kk < bound_tile_width; ++kk){
+                    value += A_shm[kk] * A_vals[j * A_num_cols + (k + kk)];
+                }
+            }
+            __syncthreads();
+        }
+    }else if(threadIdx.x < bound){
+        // Otherwise, we cannot use shared memory to accelerate
+        // in this case, each thread will compute by its own element without collaborating
+        int i = l-1;
+        int j = S_cols[_j];
+        for(int k = 0; k < A_num_cols; ++k){
+            value += A_vals[i * A_num_cols + k] * A_vals[j * A_num_cols + k];
+        }
+    }
+    // Write to C
+    if(threadIdx.x < bound) C_vals[_j] = S_vals[_j] * value;
+}
+
+void Algo::sddmm_block_over_nnz_if_same_row_use_shm(
+        HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
+
+    DeviceSparseMat dS, dC;
+    DeviceDenseMat dA;
+
+    S.to_device(dS);
+    A.to_device(dA);
+    C.to_device(dC);
+
+    dim3 threadsPerBlock(TILE_WIDTH);
+    dim3 numBlocks((S.nnz + TILE_WIDTH - 1) / TILE_WIDTH);
+
+    sddmm_block_over_nnz_if_same_row_use_shm_kernel<<<numBlocks, threadsPerBlock>>>(
+        S.num_rows, S.nnz, dS.offsets, dS.cols, dS.vals,
+        A.num_cols, dA.vals,
+        dC.vals);
+
+    dC.copy_to_host(C);
+}
+
 void Algo::sddmm_seq(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
     for(int i = 0; i < C.num_rows; i++){
         int row_C = i;
