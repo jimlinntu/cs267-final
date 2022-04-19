@@ -85,31 +85,6 @@ void CusparseAlgo::sddmm_spmm(
         cusparseDnMatDescr_t &B,
         cusparseDnMatDescr_t &D, 
         cusparseDnMatDescr_t &E){
-    //SDDMM:    (AB) * C    
-    double alpha = 1.0, beta = 0.;
-    size_t bufsize = 0;
-    cusparseConstrainedGeMM_bufferSize(handle,
-            CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE,
-            &alpha, A, B, &beta, C, CUDA_R_64F,
-            &bufsize);
-    void *dbuf = NULL;
-    assert(cudaMalloc(&dbuf, bufsize) == cudaSuccess);
-    assert(cusparseConstrainedGeMM(handle,
-            CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE, 
-            &alpha, A, B, &beta, C, CUDA_R_64F, dbuf) == cudaSuccess);
-    assert(cudaFree(dbuf) == cudaSuccess);
-
-    //SpMM:     CD = E
-    cusparseSpMM_bufferSize(handle,
-            CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE,
-            &alpha, C, D, &beta, E, CUDA_R_64F, CUSPARSE_SPMM_ALG_DEFAULT,
-            &bufsize);
-    // void *dbuf = NULL;
-    assert(cudaMalloc(&dbuf, bufsize) == cudaSuccess);
-    assert(cusparseSpMM(handle,
-            CUSPARSE_OPERATION_NON_TRANSPOSE, CUSPARSE_OPERATION_NON_TRANSPOSE, 
-            &alpha, C, D, &beta, E, CUDA_R_64F, CUSPARSE_SPMM_ALG_DEFAULT, dbuf) == cudaSuccess);
-    assert(cudaFree(dbuf) == cudaSuccess);
 }
 
 /*********************
