@@ -21,4 +21,5 @@ struct BenchmarkResult{
 
 struct Benchmarker{
     void benchmark_sddmm(BenchmarkResult &bresult);
+    void benchmark_spmm(BenchmarkResult &bresult);
 };

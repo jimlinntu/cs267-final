@@ -73,6 +73,58 @@ void Benchmarker::benchmark_sddmm(BenchmarkResult &bresult){
     bresult.result["cusparsesddmm"] = avg(m["cusparsesddmm"]);
 }
 
+void Benchmarker::benchmark_spmm(BenchmarkResult &bresult){
+    const int S_num_rows = 8023;
+    const int S_num_cols = 3928;
+    const int A_num_rows = S_num_cols;
+    const int A_num_cols = 1049;
+
+    Algo algo;
+    CusparseAlgo cualgo;
+
+    MatrixGenerator mg;
+
+    std::map<std::string, std::vector<double>> m;
+    clock_t start, end;
+
+    for(int i = 0; i < NUMEXPS; ++i){
+        int S_nnz;
+        int *S_offsets;
+        int *S_cols;
+        double *S_vals;
+        mg.generate_sparse_csr(S_num_rows, S_num_cols, S_nnz, &S_offsets, &S_cols, &S_vals);
+
+        double *A_vals;
+        mg.generate_dense(A_num_rows, A_num_cols, &A_vals);
+
+        // Create the output dense matrix
+        double *C_vals = new double[S_num_rows * A_num_cols];
+
+        HostSparseMat S(S_num_rows, S_num_cols, S_nnz, S_offsets, S_cols, S_vals, true);
+        HostDenseMat A(A_num_rows, A_num_cols, A_vals, true);
+        HostDenseMat C(S_num_rows, A_num_cols, C_vals, true);
+
+        start = clock();
+        algo.spmm(S, A, C);
+        end = clock();
+        m["spmm_shm"].push_back((double)(end - start) / CLOCKS_PER_SEC);
+
+        start = clock();
+        algo.spmm_no_shm(S, A, C);
+        end = clock();
+        m["spmm_no_shm"].push_back((double)(end - start) / CLOCKS_PER_SEC);
+
+        start = clock();
+        cualgo.spmm(S, A, C);
+        end = clock();
+        m["cusparsespmm"].push_back((double)(end - start) / CLOCKS_PER_SEC);
+    }
+
+    bresult.result["spmm_shm"] = avg(m["spmm_shm"]);
+    bresult.result["spmm_no_shm"] = avg(m["spmm_no_shm"]);
+    bresult.result["cusparsespmm"] = avg(m["cusparsespmm"]);
+}
+
 std::ostream& operator<<(std::ostream &os, const BenchmarkResult &obj){
     auto &result = obj.result;
     for(auto it = result.begin(); it != result.end(); ++it){
