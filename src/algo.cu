@@ -50,6 +50,37 @@ void CusparseAlgo::sddmm(
     assert(cudaFree(dbuf) == cudaSuccess);
 }
 
+void CusparseAlgo::spmm(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C) {
+    DeviceSparseMat dS;
+    DeviceDenseMat dA, dC;
+
+    S.to_device(dS);
+    A.to_device(dA);
+    C.to_device(dC);
+
+    cusparseHandle_t handle = NULL;
+    assert(cusparseCreate(&handle) == cudaSuccess);
+
+    cusparseSpMatDescr_t S_des;
+    cusparseDnMatDescr_t A_des, C_des;
+
+    // Convert them to cusparse descriptors
+    dS.get_cusparse_descriptor(S_des);
+    dA.get_cusparse_descriptor(A_des);
+    dC.get_cusparse_descriptor(C_des);
+
+    // Execute spmm algorithm
+    this->spmm(handle, S_des, A_des, C_des);
+
+    // copy back
+    dC.copy_to_host(C);
+
+    assert(cusparseDestroy(handle) == cudaSuccess);
+    assert(cusparseDestroySpMat(S_des) == cudaSuccess);
+    assert(cusparseDestroyDnMat(A_des) == cudaSuccess);
+    assert(cusparseDestroyDnMat(C_des) == cudaSuccess);
+}
+
 void CusparseAlgo::sddmm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
     // NOTE: S will be modified inplace
 
@@ -127,7 +158,6 @@ void Algo::spmm_no_shm(HostSparseMat &A, HostDenseMat &B, HostDenseMat &C){
 __global__ void spmm_kernel(double *A_vals, int *A_cols, int *A_offsets, int A_nnz, double *B_vals, double *C_vals, int A_h, int A_w, int B_h, int B_w) {
     int gy_C = blockIdx.y * 1 + threadIdx.y, gx_C = blockIdx.x * TILE_WIDTH + threadIdx.x;
     
-    if(gy_C >= A_h || gx_C >= B_w) return;
     double value = 0.0;
 
     int lx_C = threadIdx.x;
@@ -144,20 +174,22 @@ __global__ void spmm_kernel(double *A_vals, int *A_cols, int *A_offsets, int A_n
         if(start_idx+lx_C < gx_A_end) {
             shm_col_A[lx_C] = A_cols[start_idx+lx_C];
             shm_val_A[lx_C] = A_vals[start_idx+lx_C];
-        } else { // out of range => mark value as zero so it will not be counted
-            shm_col_A[lx_C] = 0;
-            shm_val_A[lx_C] = 0;
         }
-        __syncthreads();
 
-        for(int i = 0; i < TILE_WIDTH; i++) {
-            value += shm_val_A[i] * B_vals[shm_col_A[i]*B_w + gx_C];
+        __syncthreads();
+        
+        if(gx_C < B_w) {
+            int tile_end = min(TILE_WIDTH, gx_A_end-start_idx);
+            for(int i = 0; i < tile_end; i++) {
+                value += shm_val_A[i] * B_vals[shm_col_A[i]*B_w + gx_C];
+            }
         }
         __syncthreads();
     }
-
-    C_vals[gy_C*B_w + gx_C] = value;
+    if(gy_C < A_h && gx_C < B_w)
+        C_vals[gy_C*B_w + gx_C] = value;
 }
+
 
 void Algo::spmm(HostSparseMat &A, HostDenseMat &B, HostDenseMat &C){
     DeviceSparseMat dA;
