@@ -581,6 +581,71 @@ void Algo::sddmm_block_over_nnz_if_same_row_use_shm(
     dC.copy_to_host(C);
 }
 
+__global__ void sddmm_dynamic_parallelism_kernel_compute(
+        int i, int S_num_rows, int *S_offsets, int *S_cols, double *S_vals,
+        int A_num_cols, double *A_vals,
+        double *C_vals){
+
+    int _j = blockIdx.x * TILE_WIDTH + threadIdx.x;
+    int start = S_offsets[i], end = S_offsets[i+1];
+    int j = (start + _j < end)?(S_cols[start + _j]):(-1);
+
+    __shared__ double A_shm[TILE_WIDTH];
+
+    double value = 0.;
+    for(int k = 0; k < A_num_cols; k += TILE_WIDTH){
+        int my_k = k + threadIdx.x;
+        if(my_k < A_num_cols){
+            A_shm[threadIdx.x] = A_vals[i * A_num_cols + my_k];
+        }
+        __syncthreads();
+
+        const int bound_tile_width = MIN(TILE_WIDTH, A_num_cols - k);
+
+        if(j != -1){
+            for(int kk = 0; kk < bound_tile_width; ++kk){
+                value += A_shm[kk] * A_vals[j * A_num_cols + (k + kk)];
+            }
+        }
+        __syncthreads();
+    }
+
+    if(j != -1) C_vals[start + _j] = S_vals[start + _j] * value;
+}
+__global__ void sddmm_dynamic_parallelism_kernel_row(
+        int S_num_rows, int *S_offsets, int *S_cols, double *S_vals,
+        int A_num_cols, double *A_vals,
+        double *C_vals){
+
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    // no need to launch a new kernel
+    if(i >= S_num_rows) return;
+
+    int nnz_col = S_offsets[i+1] - S_offsets[i];
+    sddmm_dynamic_parallelism_kernel_compute<<<(nnz_col+TILE_WIDTH-1)/TILE_WIDTH, TILE_WIDTH>>>(
+            i, S_num_rows, S_offsets, S_cols, S_vals,
+            A_num_cols, A_vals,
+            C_vals);
+}
+
+void Algo::sddmm_dynamic_parallelism(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
+    DeviceSparseMat dS, dC;
+    DeviceDenseMat dA;
+
+    S.to_device(dS);
+    A.to_device(dA);
+    C.to_device(dC);
+
+    // Launch S.num_rows blocks
+    const int num_threads = 32; // at least one warp
+    sddmm_dynamic_parallelism_kernel_row<<<(S.num_rows + num_threads - 1)/num_threads, num_threads>>>(
+        S.num_rows, dS.offsets, dS.cols, dS.vals,
+        A.num_cols, dA.vals,
+        dC.vals);
+
+    dC.copy_to_host(C);
+}
+
 void Algo::sddmm_seq(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
     for(int i = 0; i < C.num_rows; i++){
         int row_C = i;
