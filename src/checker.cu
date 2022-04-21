@@ -130,3 +130,50 @@ void Checker::check_correctness_spmm() {
         assert(C == C_cusparse);
     }
 }
+
+void Checker::check_correctness_sddmm_spmm(){
+    const int num_testcases = 100;
+
+    MatrixGenerator mg;
+    // Initialize algorithms
+    Algo algo;
+    CusparseAlgo cualgo;
+
+    for(int i = 0; i < num_testcases; ++i){
+        // [100, 1000)
+        int l = 100, r = 1000;
+        int S_num_rows = l + rand() % (r-l);
+        int A_num_cols = l + rand() % (r-l);
+
+        // Generate a sparse matrix
+        int S_nnz;
+        int *S_offsets;
+        int *S_cols;
+        double *S_vals;
+
+        mg.generate_binary_sparse_csr(S_num_rows, S_num_rows, S_nnz, &S_offsets, &S_cols, &S_vals);
+
+        double *A_vals;
+        // Generate a dense matrix
+        mg.generate_dense(S_num_rows, A_num_cols, &A_vals);
+
+        // Create the output dense matrix
+        double *C_vals = new double[S_num_rows * A_num_cols];
+        double *C_vals_cusparse = new double[S_num_rows * A_num_cols];
+
+        HostSparseMat S(S_num_rows, S_num_rows, S_nnz, S_offsets, S_cols, S_vals, true);
+
+        HostDenseMat A(S_num_rows, A_num_cols, A_vals, true);
+        HostDenseMat C(S_num_rows, A_num_cols, C_vals, true);
+
+        HostDenseMat C_cusparse(S_num_rows, A_num_cols, C_vals_cusparse, true);
+
+        cualgo.sddmm_spmm(S, A, C_cusparse);
+
+        // TODO: replace them with our algo kernel
+        cualgo.sddmm(S, A, S);
+        cualgo.spmm(S, A, C);
+
+        assert(C == C_cusparse);
+    }
+}

@@ -75,10 +75,10 @@ void CusparseAlgo::spmm(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C) {
     // copy back
     dC.copy_to_host(C);
 
-    assert(cusparseDestroy(handle) == cudaSuccess);
     assert(cusparseDestroySpMat(S_des) == cudaSuccess);
     assert(cusparseDestroyDnMat(A_des) == cudaSuccess);
     assert(cusparseDestroyDnMat(C_des) == cudaSuccess);
+    assert(cusparseDestroy(handle) == cudaSuccess);
 }
 
 void CusparseAlgo::sddmm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
@@ -111,11 +111,45 @@ void CusparseAlgo::sddmm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
 
 void CusparseAlgo::sddmm_spmm(
         cusparseHandle_t &handle,
-        cusparseSpMatDescr_t &C,
+        cusparseSpMatDescr_t &S,
         cusparseDnMatDescr_t &A, 
-        cusparseDnMatDescr_t &B,
-        cusparseDnMatDescr_t &D, 
-        cusparseDnMatDescr_t &E){
+        cusparseDnMatDescr_t &C
+        ){
+
+    // NOTE: S will be modified inplaced
+    // S*AAT
+    this->sddmm(handle, S, A);
+    // C = SA
+    this->spmm(handle, S, A, C);
+    return;
+}
+
+void CusparseAlgo::sddmm_spmm(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C){
+    DeviceSparseMat dS;
+    DeviceDenseMat dA, dC;
+
+    S.to_device(dS);
+    A.to_device(dA);
+    C.to_device(dC);
+
+    cusparseHandle_t handle = NULL;
+    assert(cusparseCreate(&handle) == cudaSuccess);
+
+    cusparseSpMatDescr_t S_des;
+    cusparseDnMatDescr_t A_des, C_des;
+
+    dS.get_cusparse_descriptor(S_des);
+    dA.get_cusparse_descriptor(A_des);
+    dC.get_cusparse_descriptor(C_des);
+
+    this->sddmm_spmm(handle, S_des, A_des, C_des);
+
+    dC.copy_to_host(C);
+
+    assert(cusparseDestroySpMat(S_des) == cudaSuccess);
+    assert(cusparseDestroyDnMat(A_des) == cudaSuccess);
+    assert(cusparseDestroyDnMat(C_des) == cudaSuccess);
+    assert(cusparseDestroy(handle) == cudaSuccess);
 }
 
 /*********************

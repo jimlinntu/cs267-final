@@ -29,6 +29,10 @@ struct Algo{
     // SDDMM_SPMM
     void sddmm_spmm();
 
+    void sddmm_spmm_block_over_output(); // block over C, this will cause duplicate works
+    void sddmm_spmm_block_over_sparse_launch_as_dense_matrix(); // block over S
+    void sddmm_spmm_block_over_sparse_dynamic_parallelism();
+
     void ddmm_seq(HostDenseMat &, HostDenseMat &, HostDenseMat &);
     void sddmm_seq(HostSparseMat &, HostDenseMat &, HostSparseMat &);
 };
@@ -45,15 +49,14 @@ struct CusparseAlgo{
         cusparseHandle_t &handle,
         cusparseSpMatDescr_t &S,
         cusparseDnMatDescr_t &A);
+    void sddmm_spmm(
+        cusparseHandle_t &handle,
+        cusparseSpMatDescr_t &S,
+        cusparseDnMatDescr_t &A, 
+        cusparseDnMatDescr_t &C);
+
     // overload
     void spmm(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C);
     void sddmm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C);
-
-    void sddmm_spmm(
-        cusparseHandle_t &handle,
-        cusparseSpMatDescr_t &C,
-        cusparseDnMatDescr_t &A, 
-        cusparseDnMatDescr_t &B,
-        cusparseDnMatDescr_t &D, 
-        cusparseDnMatDescr_t &E);
+    void sddmm_spmm(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C);
 };

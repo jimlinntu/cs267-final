@@ -28,6 +28,8 @@ int main(){
     std::cout << "===== PASS sddmm correctness check =====\n";
     ch.check_correctness_spmm();
     std::cout << "===== PASS spmm correctness check =====\n";
+    ch.check_correctness_sddmm_spmm();
+    std::cout << "===== PASS sddmm_spmm correctness check =====\n";
 
     // Test speed
     Benchmarker bm;
