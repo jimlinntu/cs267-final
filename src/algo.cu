@@ -680,6 +680,85 @@ void Algo::sddmm_dynamic_parallelism(HostSparseMat &S, HostDenseMat &A, HostSpar
     dC.copy_to_host(C);
 }
 
+__global__ void sddmm_spmm_block_over_sparse_launch_as_dense_matrix_kernel(
+        int S_num_rows, int *S_offsets, int *S_cols, double *S_vals,
+        int A_num_cols, double *A_vals,
+        double *C_vals){
+
+    int i = blockIdx.x;
+    int _k = blockIdx.y * blockDim.y + threadIdx.y;
+    int _k_first = blockIdx.y * blockDim.y + 0;
+    int start = S_offsets[i], end = S_offsets[i+1];
+    // no work to do for this block
+    if(start + _k_first >= end) return;
+
+    int k = (start + _k < end)? S_cols[start + _k]:(-1);
+
+    __shared__ double A_shm[TILE_WIDTH];
+    __shared__ int S_col_shm[TILE_WIDTH];
+    __shared__ double S_shm[TILE_WIDTH];
+
+    // SDDMM but only put the result in S_shm
+    double value_SAAT = 0.;
+    int bound_tile_width;
+    for(int l = 0; l < A_num_cols; l += TILE_WIDTH){
+        int my_l = l + threadIdx.y;
+        if(my_l < A_num_cols){
+            A_shm[threadIdx.y] = A_vals[i * A_num_cols + my_l];
+        }
+        __syncthreads();
+        bound_tile_width = MIN(TILE_WIDTH, A_num_cols - l);
+        if(k != -1){
+            for(int ll = 0; ll < bound_tile_width; ++ll){
+                value_SAAT += A_shm[ll] * A_vals[k * A_num_cols + (l + ll)];
+            }
+        }
+        __syncthreads();
+    }
+    // save row information on the sparse matrix to the shared memory
+    S_col_shm[threadIdx.y] = k;
+    if(k != -1)
+        S_shm[threadIdx.y] = value_SAAT * S_vals[start + _k];
+    // Wait until S_shm is ready
+    __syncthreads();
+    // SPMM
+    bound_tile_width = MIN(TILE_WIDTH, end - (start + _k_first));
+    for(int j = 0; j < A_num_cols; j += TILE_WIDTH){
+        int my_j = j + threadIdx.y;
+        if(my_j < A_num_cols){
+            double value = 0.;
+            for(int kk = 0; kk < bound_tile_width; ++kk){
+                // TODO: maintain a A^T?
+                value += S_shm[kk] * A_vals[S_col_shm[kk] * A_num_cols + my_j];
+            }
+            atomicAdd(&C_vals[i * A_num_cols + my_j], value);
+        }
+    }
+}
+
+void Algo::sddmm_spmm_block_over_sparse_launch_as_dense_matrix(
+        HostSparseMat &S, HostDenseMat &A, HostDenseMat &C){
+
+    DeviceSparseMat dS;
+    DeviceDenseMat dA, dC;
+
+    S.to_device(dS);
+    A.to_device(dA);
+    C.to_device(dC);
+
+    dim3 threadsPerBlock(1, TILE_WIDTH);
+    dim3 numBlocks(S.num_rows, (S.num_cols + TILE_WIDTH - 1) / TILE_WIDTH);
+
+    // Set dC.vals to 0 matrix because later we will increment it
+    assert(cudaMemset(dC.vals, 0, sizeof(double) * C.num_rows * C.num_cols) == cudaSuccess);
+    sddmm_spmm_block_over_sparse_launch_as_dense_matrix_kernel<<<numBlocks, threadsPerBlock>>>(
+        S.num_rows, dS.offsets, dS.cols, dS.vals,
+        A.num_cols, dA.vals,
+        dC.vals);
+
+    dC.copy_to_host(C);
+}
+
 void Algo::sddmm_seq(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
     for(int i = 0; i < C.num_rows; i++){
         int row_C = i;

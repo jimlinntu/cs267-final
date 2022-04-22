@@ -12,10 +12,10 @@ OBJS = $(OBJ_DIR)/algo.o $(OBJ_DIR)/matrix.o $(OBJ_DIR)/benchmark.o $(OBJ_DIR)/c
 EXEC = main
 
 all: $(OBJS) main.o
-	nvcc $(INC) main.o $(OBJS) -lcusparse -lcudart -lcudadevrt -o $(EXEC)
+	nvcc -arch sm_60 $(INC) main.o $(OBJS) -lcusparse -lcudart -lcudadevrt -o $(EXEC)
 main.o: main.cu
-	nvcc -rdc true -c $< -o $@
+	nvcc -arch sm_60 -rdc true -c $< -o $@
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cu $(INC_DIR)/%.cuh
-	nvcc -rdc true -c $< -o $@
+	nvcc -arch sm_60 -rdc true -c $< -o $@
 clean:
 	rm bin/* *.o $(EXEC)

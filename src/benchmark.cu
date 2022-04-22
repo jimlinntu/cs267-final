@@ -137,6 +137,52 @@ void Benchmarker::benchmark_spmm(BenchmarkResult &bresult){
     bresult.result["cusparsespmm"] = avg(m["cusparsespmm"]);
 }
 
+void Benchmarker::benchmark_sddmm_spmm(BenchmarkResult &bresult){
+    const int S_num_rows = 8023;
+    const int S_num_cols = S_num_rows;
+    const int A_num_rows = S_num_rows;
+    const int A_num_cols = 1049;
+
+    Algo algo;
+    CusparseAlgo cualgo;
+
+    MatrixGenerator mg;
+
+    std::map<std::string, std::vector<double>> m;
+    clock_t start, end;
+
+    for(int i = 0; i < NUMEXPS; ++i){
+        int S_nnz;
+        int *S_offsets;
+        int *S_cols;
+        double *S_vals;
+        mg.generate_sparse_csr(S_num_rows, S_num_cols, S_nnz, &S_offsets, &S_cols, &S_vals);
+
+        double *A_vals;
+        mg.generate_dense(A_num_rows, A_num_cols, &A_vals);
+
+        // Create the output dense matrix
+        double *C_vals = new double[S_num_rows * A_num_cols];
+
+        HostSparseMat S(S_num_rows, S_num_cols, S_nnz, S_offsets, S_cols, S_vals, true);
+        HostDenseMat A(A_num_rows, A_num_cols, A_vals, true);
+        HostDenseMat C(S_num_rows, A_num_cols, C_vals, true);
+
+        start = clock();
+        algo.sddmm_spmm_block_over_sparse_launch_as_dense_matrix(S, A, C);
+        end = clock();
+        m["sddmm_spmm_block_over_sparse_launch_as_dense_matrix"].push_back((double)(end - start) / CLOCKS_PER_SEC);
+
+        start = clock();
+        cualgo.sddmm_spmm(S, A, C);
+        end = clock();
+        m["cusparse_sddmm_spmm"].push_back((double)(end - start) / CLOCKS_PER_SEC);
+    }
+
+    bresult.result["sddmm_spmm_block_over_sparse_launch_as_dense_matrix"] = avg(m["sddmm_spmm_block_over_sparse_launch_as_dense_matrix"]);
+    bresult.result["cusparse_sddmm_spmm"] = avg(m["cusparse_sddmm_spmm"]);
+}
+
 std::ostream& operator<<(std::ostream &os, const BenchmarkResult &obj){
     auto &result = obj.result;
     for(auto it = result.begin(); it != result.end(); ++it){

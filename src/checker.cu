@@ -170,10 +170,7 @@ void Checker::check_correctness_sddmm_spmm(){
 
         cualgo.sddmm_spmm(S, A, C_cusparse);
 
-        // TODO: replace them with our algo kernel
-        cualgo.sddmm(S, A, S);
-        cualgo.spmm(S, A, C);
-
+        algo.sddmm_spmm_block_over_sparse_launch_as_dense_matrix(S, A, C);
         assert(C == C_cusparse);
     }
 }

@@ -33,7 +33,7 @@ int main(){
 
     // Test speed
     Benchmarker bm;
-    BenchmarkResult sddmm_result;
+    BenchmarkResult sddmm_result, spmm_result, sddmm_spmm_result;
 
     bm.benchmark_sddmm(sddmm_result);
 
@@ -41,11 +41,14 @@ int main(){
     std::cout << sddmm_result;
     std::cout << "====================================\n";
 
-    BenchmarkResult spmm_result;
-
     bm.benchmark_spmm(spmm_result);
     std::cout << "====== spmm benchmark result: =====\n";
     std::cout << spmm_result;
+    std::cout << "====================================\n";
+
+    bm.benchmark_sddmm_spmm(sddmm_spmm_result);
+    std::cout << "=== sddmm_spmm benchmark result: ===\n";
+    std::cout << sddmm_spmm_result;
     std::cout << "====================================\n";
 
     return 0;
