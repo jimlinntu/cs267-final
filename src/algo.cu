@@ -680,6 +680,79 @@ void Algo::sddmm_dynamic_parallelism(HostSparseMat &S, HostDenseMat &A, HostSpar
     dC.copy_to_host(C);
 }
 
+__global__ void sddmm_spmm_block_over_output_kernel(
+        int S_num_rows, int *S_offsets, int *S_cols, double *S_vals,
+        int A_num_cols, double *A_vals,
+        double *C_vals){
+
+    int i = blockIdx.x;
+    int j = blockIdx.y * TILE_WIDTH + threadIdx.y;
+
+    __shared__ double A_shm[TILE_WIDTH];
+    __shared__ int S_col_shm[TILE_WIDTH];
+    __shared__ double S_shm[TILE_WIDTH];
+
+    double c = 0.;
+    int start = S_offsets[i], end = S_offsets[i+1];
+    int bound;
+    for(int _k = start; _k < end; _k += TILE_WIDTH){
+        int _my_k = _k + threadIdx.y;
+        int k = (_my_k < end)?(S_cols[_my_k]):(-1);
+        // compute S multiply A AT (SDDMM)
+        double saat = 0.;
+        for(int l = 0; l < A_num_cols; l += TILE_WIDTH){
+            int my_l = l + threadIdx.y;
+            if(my_l < A_num_cols){
+                A_shm[threadIdx.y] = A_vals[i * A_num_cols + my_l];
+            }
+            __syncthreads();
+            if(k != -1){
+                bound = MIN(TILE_WIDTH, A_num_cols - l);
+                for(int ll = 0; ll < bound; ++ll){
+                    saat += A_shm[ll] * A_vals[k * A_num_cols + (l + ll)];
+                }
+            }
+            __syncthreads();
+        }
+
+        if(k != -1){
+            S_col_shm[threadIdx.y] = k;
+            S_shm[threadIdx.y] = saat * S_vals[_my_k];
+        }
+        __syncthreads();
+        bound = MIN(TILE_WIDTH, end - _k);
+        if(j < A_num_cols){
+            for(int kk = 0; kk < bound; ++kk){
+                c += S_shm[kk] * A_vals[S_col_shm[kk] * A_num_cols + j];
+            }
+        }
+        __syncthreads();
+    }
+
+    // write the result back to C
+    if(j < A_num_cols) C_vals[i * A_num_cols + j] = c;
+}
+
+void Algo::sddmm_spmm_block_over_output(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C){
+    DeviceSparseMat dS;
+    DeviceDenseMat dA, dC;
+
+    S.to_device(dS);
+    A.to_device(dA);
+    C.to_device(dC);
+
+    dim3 threadsPerBlock(1, TILE_WIDTH);
+    dim3 numBlocks(C.num_rows, (C.num_cols + TILE_WIDTH - 1) / TILE_WIDTH);
+
+    // block over C
+    sddmm_spmm_block_over_output_kernel<<<numBlocks, threadsPerBlock>>>(
+        S.num_rows, dS.offsets, dS.cols, dS.vals,
+        A.num_cols, dA.vals,
+        dC.vals);
+
+    dC.copy_to_host(C);
+}
+
 __global__ void sddmm_spmm_block_over_sparse_launch_as_dense_matrix_kernel(
         int S_num_rows, int *S_offsets, int *S_cols, double *S_vals,
         int A_num_cols, double *A_vals,

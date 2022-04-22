@@ -29,7 +29,9 @@ struct Algo{
     // SDDMM_SPMM
     void sddmm_spmm();
 
-    void sddmm_spmm_block_over_output(); // block over C, this will cause duplicate works
+    // block over C, this will cause duplicate works computing S AAT
+    void sddmm_spmm_block_over_output(
+            HostSparseMat &, HostDenseMat &, HostDenseMat &);
     void sddmm_spmm_block_over_sparse_launch_as_dense_matrix(
             HostSparseMat &, HostDenseMat &, HostDenseMat &); // block over S
     void sddmm_spmm_block_over_sparse_dynamic_parallelism();
