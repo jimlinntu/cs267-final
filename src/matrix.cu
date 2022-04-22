@@ -234,8 +234,8 @@ std::ostream& operator<<(std::ostream &os, const HostSparseMat &obj){
         }
         os << "\n";
     }
-    return os;
     free(tmp);
+    return os;
 }
 
 /*********************

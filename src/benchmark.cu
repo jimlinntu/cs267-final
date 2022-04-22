@@ -191,4 +191,5 @@ std::ostream& operator<<(std::ostream &os, const BenchmarkResult &obj){
 
         os << expname << " takes " << avg_sec << " seconds\n";
     }
+    return os;
 }
