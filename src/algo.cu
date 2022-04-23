@@ -965,6 +965,32 @@ void Algo::sddmm_spmm_block_over_sparse_launch_as_dense_matrix(
     dC.copy_to_host(C);
 }
 
+void Algo::sddmm_spmm_naive_back2back_calls(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C){
+    DeviceSparseMat dS;
+    DeviceDenseMat dA, dC;
+
+    S.to_device(dS);
+    A.to_device(dA);
+    C.to_device(dC);
+
+    dim3 threadsPerBlock(1, TILE_WIDTH);
+    dim3 numBlocks(S.num_rows, (S.num_cols + TILE_WIDTH - 1) / TILE_WIDTH);
+
+    sddmm_launch_kernel_as_dense_matrix_kernel<<<numBlocks, threadsPerBlock>>>(
+        S.num_rows, dS.offsets, dS.cols, dS.vals,
+        A.num_cols, dA.vals,
+        dS.vals); // dS will be modified inplace!!!!
+
+    dim3 threadsPerBlock2(1, TILE_WIDTH);
+    dim3 numBlocks2(C.num_rows, (C.num_cols + TILE_WIDTH - 1) / TILE_WIDTH);
+    spmm_with_shm_jim_kernel<<<numBlocks2, threadsPerBlock2>>>(
+        S.num_rows, dS.offsets, dS.cols, dS.vals,
+        A.num_cols, dA.vals,
+        dC.vals);
+
+    dC.copy_to_host(C);
+}
+
 void Algo::sddmm_seq(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
     for(int i = 0; i < C.num_rows; i++){
         int row_C = i;

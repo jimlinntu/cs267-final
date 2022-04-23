@@ -184,5 +184,9 @@ void Checker::check_correctness_sddmm_spmm(){
         std::fill(C.vals, C.vals+S_num_rows*A_num_cols, 0);
         algo.sddmm_spmm_block_over_output(S, A, C);
         assert(C == C_cusparse);
+
+        std::fill(C.vals, C.vals+S_num_rows*A_num_cols, 0);
+        algo.sddmm_spmm_naive_back2back_calls(S, A, C);
+        assert(C == C_cusparse);
     }
 }

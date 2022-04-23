@@ -194,6 +194,11 @@ void Benchmarker::benchmark_sddmm_spmm(BenchmarkResult &bresult){
         }
 
         start = clock();
+        algo.sddmm_spmm_naive_back2back_calls(S, A, C);
+        end = clock();
+        m["sddmm_spmm_naive_back2back_calls"].push_back((double)(end - start) / CLOCKS_PER_SEC);
+
+        start = clock();
         cualgo.sddmm_spmm(S, A, C);
         end = clock();
         m["cusparse_sddmm_spmm"].push_back((double)(end - start) / CLOCKS_PER_SEC);
@@ -201,6 +206,7 @@ void Benchmarker::benchmark_sddmm_spmm(BenchmarkResult &bresult){
 
     bresult.result["sddmm_spmm_block_over_sparse_launch_as_dense_matrix"] = avg(m["sddmm_spmm_block_over_sparse_launch_as_dense_matrix"]);
     /* bresult.result["sddmm_spmm_block_over_output"] = avg(m["sddmm_spmm_block_over_output"]); */
+    bresult.result["sddmm_spmm_naive_back2back_calls"] = avg(m["sddmm_spmm_naive_back2back_calls"]);
     bresult.result["cusparse_sddmm_spmm"] = avg(m["cusparse_sddmm_spmm"]);
 }
 
