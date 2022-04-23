@@ -243,7 +243,7 @@ void Algo::spmm(HostSparseMat &A, HostDenseMat &B, HostDenseMat &C){
 
 __global__ void spmm_with_shm_jim_kernel(
         int S_num_rows, int *S_offsets, int *S_cols, double *S_vals,
-        int A_num_cols, double *A_vals, double *AT_vals, // AT_vals is A^T
+        int A_num_cols, double *A_vals,
         double *C_vals){
     int i = blockIdx.x;
     int j = blockIdx.y * TILE_WIDTH + threadIdx.y;
@@ -287,7 +287,7 @@ void Algo::spmm_with_shm_jim(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C)
 
     spmm_with_shm_jim_kernel<<<numBlocks, threadsPerBlock>>>(
         S.num_rows, dS.offsets, dS.cols, dS.vals,
-        A.num_cols, dA.vals, dA.vals, // TODO
+        A.num_cols, dA.vals,
         dC.vals);
 
     dC.copy_to_host(C);
