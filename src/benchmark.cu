@@ -161,7 +161,9 @@ void Benchmarker::benchmark_sddmm_spmm(BenchmarkResult &bresult){
     MatrixGenerator mg;
 
     std::map<std::string, std::vector<double>> m;
+    std::map<std::string, std::vector<double>> gpu_m;
     clock_t start, end;
+    float gpu_time;
 
     for(int i = 0; i < NUMEXPS; ++i){
         int S_nnz;
@@ -181,9 +183,10 @@ void Benchmarker::benchmark_sddmm_spmm(BenchmarkResult &bresult){
         HostDenseMat C(S_num_rows, A_num_cols, C_vals, true);
 
         start = clock();
-        algo.sddmm_spmm_block_over_sparse_launch_as_dense_matrix(S, A, C);
+        algo.sddmm_spmm_block_over_sparse_launch_as_dense_matrix(S, A, C, &gpu_time);
         end = clock();
         m["sddmm_spmm_block_over_sparse_launch_as_dense_matrix"].push_back((double)(end - start) / CLOCKS_PER_SEC);
+        gpu_m["sddmm_spmm_block_over_sparse_launch_as_dense_matrix"].push_back(gpu_time);
 
         // This one is extremely slow!! (because of duplicate works)
         if(0){
@@ -208,11 +211,24 @@ void Benchmarker::benchmark_sddmm_spmm(BenchmarkResult &bresult){
     /* bresult.result["sddmm_spmm_block_over_output"] = avg(m["sddmm_spmm_block_over_output"]); */
     bresult.result["sddmm_spmm_naive_back2back_calls"] = avg(m["sddmm_spmm_naive_back2back_calls"]);
     bresult.result["cusparse_sddmm_spmm"] = avg(m["cusparse_sddmm_spmm"]);
+
+    bresult.gpu_compute_result["sddmm_spmm_block_over_sparse_launch_as_dense_matrix"] =\
+        avg(gpu_m["sddmm_spmm_block_over_sparse_launch_as_dense_matrix"]);
 }
 
 std::ostream& operator<<(std::ostream &os, const BenchmarkResult &obj){
+    os << "[*] CPU -> GPU -> CPU time:\n";
     auto &result = obj.result;
     for(auto it = result.begin(); it != result.end(); ++it){
+        std::string expname = it->first;
+        double avg_sec = it->second;
+
+        os << expname << " takes " << avg_sec << " seconds\n";
+    }
+
+    os << "[*] Pure GPU compute time:\n";
+    auto &gpu_compute_result = obj.gpu_compute_result;
+    for(auto it = gpu_compute_result.begin(); it != gpu_compute_result.end(); ++it){
         std::string expname = it->first;
         double avg_sec = it->second;
 

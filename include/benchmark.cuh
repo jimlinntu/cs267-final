@@ -15,6 +15,7 @@ struct BenchmarkResult{
     using ExpName = std::string;
     using Sec = double;
     std::map<ExpName, Sec> result;
+    std::map<ExpName, Sec> gpu_compute_result;
     void to_csv(); // TODO: save the experiment result
     friend std::ostream& operator<<(std::ostream &os, const BenchmarkResult &obj);
 };

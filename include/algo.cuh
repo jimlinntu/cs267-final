@@ -38,7 +38,7 @@ struct Algo{
     void sddmm_spmm_block_over_output(
             HostSparseMat &, HostDenseMat &, HostDenseMat &);
     void sddmm_spmm_block_over_sparse_launch_as_dense_matrix(
-            HostSparseMat &, HostDenseMat &, HostDenseMat &); // block over S
+            HostSparseMat &, HostDenseMat &, HostDenseMat &, float *gpu_compute_time = nullptr); // block over S
     void sddmm_spmm_block_over_sparse_dynamic_parallelism();
 
     void ddmm_seq(HostDenseMat &, HostDenseMat &, HostDenseMat &);
