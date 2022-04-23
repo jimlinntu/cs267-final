@@ -241,6 +241,57 @@ void Algo::spmm(HostSparseMat &A, HostDenseMat &B, HostDenseMat &C){
     dC.copy_to_host(C);
 }
 
+__global__ void spmm_with_shm_jim_kernel(
+        int S_num_rows, int *S_offsets, int *S_cols, double *S_vals,
+        int A_num_cols, double *A_vals, double *AT_vals, // AT_vals is A^T
+        double *C_vals){
+    int i = blockIdx.x;
+    int j = blockIdx.y * TILE_WIDTH + threadIdx.y;
+    int start = S_offsets[i], end = S_offsets[i+1];
+
+    __shared__ int S_col_shm[TILE_WIDTH];
+    __shared__ double S_shm[TILE_WIDTH];
+
+    double c = 0.;
+    int bound;
+    for(int _k = start; _k < end; _k += TILE_WIDTH){
+        int _my_k = _k + threadIdx.y;
+        if(_my_k < end){
+            S_col_shm[threadIdx.y] = S_cols[_my_k];
+            S_shm[threadIdx.y] = S_vals[_my_k];
+        }
+        __syncthreads();
+
+        if(j < A_num_cols){
+            bound = MIN(TILE_WIDTH, end - _k);
+            for(int kk = 0; kk < bound; ++kk){
+                c += S_shm[kk] * A_vals[S_col_shm[kk] * A_num_cols + j];
+            }
+        }
+        __syncthreads();
+    }
+
+    if(j < A_num_cols) C_vals[i * A_num_cols + j] = c;
+}
+
+void Algo::spmm_with_shm_jim(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C){
+    DeviceSparseMat dS;
+    DeviceDenseMat dA, dC;
+
+    S.to_device(dS);
+    A.to_device(dA);
+    C.to_device(dC);
+
+    dim3 threadsPerBlock(1, TILE_WIDTH);
+    dim3 numBlocks(C.num_rows, (C.num_cols + TILE_WIDTH - 1) / TILE_WIDTH);
+
+    spmm_with_shm_jim_kernel<<<numBlocks, threadsPerBlock>>>(
+        S.num_rows, dS.offsets, dS.cols, dS.vals,
+        A.num_cols, dA.vals, dA.vals, // TODO
+        dC.vals);
+
+    dC.copy_to_host(C);
+}
 
 __global__ void sddmm_shm_kernel(double *S_vals, int *S_cols, double *A_vals, double *C_vals, int *tid_to_vid, int *tid_to_rid, int A_w) {
     int lx = threadIdx.x, gx = blockIdx.x * TILE_WIDTH + lx;
