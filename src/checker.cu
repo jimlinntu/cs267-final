@@ -132,6 +132,10 @@ void Checker::check_correctness_spmm() {
         std::fill(C.vals, C.vals+S_num_rows*A_num_cols, 0);
         algo.spmm_with_shm_jim(S, A, C);
         assert(C == C_cusparse);
+
+        std::fill(C.vals, C.vals+S_num_rows*A_num_cols, 0);
+        algo.spmm_with_shm_jim_transpose_first(S, A, C);
+        assert(C == C_cusparse);
     }
 }
 

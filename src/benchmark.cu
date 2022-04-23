@@ -132,6 +132,11 @@ void Benchmarker::benchmark_spmm(BenchmarkResult &bresult){
         m["spmm_with_shm_jim"].push_back((double)(end - start) / CLOCKS_PER_SEC);
 
         start = clock();
+        algo.spmm_with_shm_jim_transpose_first(S, A, C);
+        end = clock();
+        m["spmm_with_shm_jim_transpose_first"].push_back((double)(end - start) / CLOCKS_PER_SEC);
+
+        start = clock();
         cualgo.spmm(S, A, C);
         end = clock();
         m["cusparsespmm"].push_back((double)(end - start) / CLOCKS_PER_SEC);
@@ -140,6 +145,7 @@ void Benchmarker::benchmark_spmm(BenchmarkResult &bresult){
     bresult.result["spmm_shm"] = avg(m["spmm_shm"]);
     bresult.result["spmm_no_shm"] = avg(m["spmm_no_shm"]);
     bresult.result["spmm_with_shm_jim"] = avg(m["spmm_with_shm_jim"]);
+    bresult.result["spmm_with_shm_jim_transpose_first"] = avg(m["spmm_with_shm_jim_transpose_first"]);
     bresult.result["cusparsespmm"] = avg(m["cusparsespmm"]);
 }
 
