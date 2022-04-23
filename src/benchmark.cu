@@ -202,9 +202,10 @@ void Benchmarker::benchmark_sddmm_spmm(BenchmarkResult &bresult){
         m["sddmm_spmm_naive_back2back_calls"].push_back((double)(end - start) / CLOCKS_PER_SEC);
 
         start = clock();
-        cualgo.sddmm_spmm(S, A, C);
+        cualgo.sddmm_spmm(S, A, C, &gpu_time);
         end = clock();
         m["cusparse_sddmm_spmm"].push_back((double)(end - start) / CLOCKS_PER_SEC);
+        gpu_m["cusparse_sddmm_spmm"].push_back(gpu_time);
     }
 
     bresult.result["sddmm_spmm_block_over_sparse_launch_as_dense_matrix"] = avg(m["sddmm_spmm_block_over_sparse_launch_as_dense_matrix"]);
@@ -214,6 +215,8 @@ void Benchmarker::benchmark_sddmm_spmm(BenchmarkResult &bresult){
 
     bresult.gpu_compute_result["sddmm_spmm_block_over_sparse_launch_as_dense_matrix"] =\
         avg(gpu_m["sddmm_spmm_block_over_sparse_launch_as_dense_matrix"]);
+    bresult.gpu_compute_result["cusparse_sddmm_spmm"] =\
+        avg(gpu_m["cusparse_sddmm_spmm"]);
 }
 
 std::ostream& operator<<(std::ostream &os, const BenchmarkResult &obj){

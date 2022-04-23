@@ -124,13 +124,21 @@ void CusparseAlgo::sddmm_spmm(
     return;
 }
 
-void CusparseAlgo::sddmm_spmm(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C){
+void CusparseAlgo::sddmm_spmm(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C, float *gpu_compute_time){
+    cudaEvent_t start, end;
+    if(gpu_compute_time){
+        cudaEventCreate(&start);
+        cudaEventCreate(&end);
+    }
+
     DeviceSparseMat dS;
     DeviceDenseMat dA, dC;
 
     S.to_device(dS);
     A.to_device(dA);
     C.to_device(dC);
+
+    if(gpu_compute_time) cudaEventRecord(start);
 
     cusparseHandle_t handle = NULL;
     assert(cusparseCreate(&handle) == cudaSuccess);
@@ -144,12 +152,22 @@ void CusparseAlgo::sddmm_spmm(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C
 
     this->sddmm_spmm(handle, S_des, A_des, C_des);
 
+    if(gpu_compute_time) cudaEventRecord(end);
+
     dC.copy_to_host(C);
 
     assert(cusparseDestroySpMat(S_des) == cudaSuccess);
     assert(cusparseDestroyDnMat(A_des) == cudaSuccess);
     assert(cusparseDestroyDnMat(C_des) == cudaSuccess);
     assert(cusparseDestroy(handle) == cudaSuccess);
+
+    // Wait until the default stream reaches this flag
+    if(gpu_compute_time){
+        *gpu_compute_time = 0;
+        cudaEventSynchronize(end);
+        cudaEventElapsedTime(gpu_compute_time, start, end);
+        *gpu_compute_time /= 1000; // milliseconds to seconds
+    }
 }
 
 /*********************
