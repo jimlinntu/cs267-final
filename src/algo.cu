@@ -243,7 +243,7 @@ __global__ void spmm_kernel(double *A_vals, int *A_cols, int *A_offsets, int A_n
 }
 
 
-void Algo::spmm(HostSparseMat &A, HostDenseMat &B, HostDenseMat &C){
+void Algo::spmm_with_shm(HostSparseMat &A, HostDenseMat &B, HostDenseMat &C){
     DeviceSparseMat dA;
     DeviceDenseMat dB, dC;
     A.to_device(dA);
@@ -1039,9 +1039,6 @@ void Algo::sddmm_seq(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
             C.vals[j] = value * S.vals[j];
         }
     }
-}
-
-void Algo::sddmm_spmm(){
 }
 
 void Algo::ddmm_seq(HostDenseMat &A, HostDenseMat &B, HostDenseMat &C){

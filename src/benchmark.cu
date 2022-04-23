@@ -117,9 +117,9 @@ void Benchmarker::benchmark_spmm(BenchmarkResult &bresult){
         HostDenseMat C(S_num_rows, A_num_cols, C_vals, true);
 
         start = clock();
-        algo.spmm(S, A, C);
+        algo.spmm_with_shm(S, A, C);
         end = clock();
-        m["spmm_shm"].push_back((double)(end - start) / CLOCKS_PER_SEC);
+        m["spmm_with_shm"].push_back((double)(end - start) / CLOCKS_PER_SEC);
 
         start = clock();
         algo.spmm_no_shm(S, A, C);
@@ -142,7 +142,7 @@ void Benchmarker::benchmark_spmm(BenchmarkResult &bresult){
         m["cusparsespmm"].push_back((double)(end - start) / CLOCKS_PER_SEC);
     }
 
-    bresult.result["spmm_shm"] = avg(m["spmm_shm"]);
+    bresult.result["spmm_with_shm"] = avg(m["spmm_with_shm"]);
     bresult.result["spmm_no_shm"] = avg(m["spmm_no_shm"]);
     bresult.result["spmm_with_shm_jim"] = avg(m["spmm_with_shm_jim"]);
     bresult.result["spmm_with_shm_jim_transpose_first"] = avg(m["spmm_with_shm_jim_transpose_first"]);

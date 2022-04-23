@@ -14,7 +14,7 @@ Header for struct
 
 struct Algo{
     // SPMM
-    void spmm(HostSparseMat &, HostDenseMat &, HostDenseMat &);
+    void spmm_with_shm(HostSparseMat &, HostDenseMat &, HostDenseMat &);
     void spmm_no_shm(HostSparseMat &, HostDenseMat &, HostDenseMat &);
     void spmm_with_shm_jim(HostSparseMat &, HostDenseMat &, HostDenseMat &);
     void spmm_with_shm_jim_transpose_first(HostSparseMat &, HostDenseMat &, HostDenseMat &);
@@ -29,7 +29,6 @@ struct Algo{
     void sddmm_dynamic_parallelism(HostSparseMat &, HostDenseMat &, HostSparseMat &);
 
     // SDDMM_SPMM
-    void sddmm_spmm();
 
     // Naively call our fastest two kernels back to back
     void sddmm_spmm_naive_back2back_calls(HostSparseMat &, HostDenseMat &, HostDenseMat &);
