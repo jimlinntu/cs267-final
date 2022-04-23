@@ -16,7 +16,9 @@ void Benchmarker::benchmark_sddmm(BenchmarkResult &bresult){
     MatrixGenerator mg;
 
     std::map<std::string, std::vector<double>> m;
+    std::map<std::string, std::vector<double>> gpu_m;
     clock_t start, end;
+    float gpu_time;
 
     for(int i = 0; i < NUMEXPS; ++i){
         int S_nnz;
@@ -71,9 +73,10 @@ void Benchmarker::benchmark_sddmm(BenchmarkResult &bresult){
         m["sddmm_dynamic_parallelism"].push_back((double)(end - start) / CLOCKS_PER_SEC);
 
         start = clock();
-        cualgo.sddmm(S, A, C);
+        cualgo.sddmm(S, A, C, &gpu_time);
         end = clock();
         m["cusparsesddmm"].push_back((double)(end - start) / CLOCKS_PER_SEC);
+        gpu_m["cusparsesddmm"].push_back(gpu_time);
     }
 
     bresult.result["sddmm"] = avg(m["sddmm"]);
@@ -83,6 +86,8 @@ void Benchmarker::benchmark_sddmm(BenchmarkResult &bresult){
     bresult.result["sddmm_block_over_nnz_if_same_row_use_shm"] = avg(m["sddmm_block_over_nnz_if_same_row_use_shm"]);
     bresult.result["sddmm_dynamic_parallelism"] = avg(m["sddmm_dynamic_parallelism"]);
     bresult.result["cusparsesddmm"] = avg(m["cusparsesddmm"]);
+
+    bresult.gpu_compute_result["cusparsesddmm"] = avg(gpu_m["cusparsesddmm"]);
 }
 
 void Benchmarker::benchmark_spmm(BenchmarkResult &bresult){
