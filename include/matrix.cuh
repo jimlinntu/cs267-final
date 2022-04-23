@@ -49,7 +49,6 @@ struct DeviceDenseMat{
     ~DeviceDenseMat();
 
     void get_cusparse_descriptor(cusparseDnMatDescr_t &mat);
-    void get_cusparse_col_descriptor(cusparseDnMatDescr_t &mat);
     void copy_to_host(HostDenseMat &h);
     // overload set
     __device__ double & operator [](int i) {return vals[i];}
