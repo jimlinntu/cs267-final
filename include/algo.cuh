@@ -24,7 +24,7 @@ struct Algo{
     void sddmm_block_over_nnz(HostSparseMat &, HostDenseMat &, HostSparseMat &);
     void sddmm_block_over_nnz_if_same_row_use_shm(HostSparseMat &, HostDenseMat &, HostSparseMat &);
     void sddmm_block_over_nnz_but_in_same_row(HostSparseMat &, HostDenseMat &, HostSparseMat &);
-    void sddmm_launch_kernel_as_dense_matrix(HostSparseMat &, HostDenseMat &, HostSparseMat &);
+    void sddmm_launch_kernel_as_dense_matrix(HostSparseMat &, HostDenseMat &, HostSparseMat &, float *gpu_compute_time = nullptr);
     // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#cuda-dynamic-parallelism
     void sddmm_dynamic_parallelism(HostSparseMat &, HostDenseMat &, HostSparseMat &);
 

@@ -677,7 +677,12 @@ __global__ void sddmm_launch_kernel_as_dense_matrix_kernel(
 }
 
 void Algo::sddmm_launch_kernel_as_dense_matrix(
-        HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
+        HostSparseMat &S, HostDenseMat &A, HostSparseMat &C, float *gpu_compute_time){
+    cudaEvent_t start, end;
+    if(gpu_compute_time){
+        cudaEventCreate(&start);
+        cudaEventCreate(&end);
+    }
 
     DeviceSparseMat dS, dC;
     DeviceDenseMat dA;
@@ -690,12 +695,22 @@ void Algo::sddmm_launch_kernel_as_dense_matrix(
     dim3 threadsPerBlock(1, TILE_WIDTH);
     dim3 numBlocks(S.num_rows, (S.num_cols + TILE_WIDTH - 1) / TILE_WIDTH);
 
+    if(gpu_compute_time) cudaEventRecord(start);
+
     sddmm_launch_kernel_as_dense_matrix_kernel<<<numBlocks, threadsPerBlock>>>(
         S.num_rows, dS.offsets, dS.cols, dS.vals,
         A.num_cols, dA.vals,
         dC.vals);
 
+    if(gpu_compute_time) cudaEventRecord(end);
+
     dC.copy_to_host(C);
+    if(gpu_compute_time){
+        *gpu_compute_time = 0;
+        cudaEventSynchronize(end);
+        cudaEventElapsedTime(gpu_compute_time, start, end);
+        *gpu_compute_time /= 1000; // milliseconds to seconds
+    }
 }
 
 __global__ void sddmm_block_over_nnz_if_same_row_use_shm_kernel(

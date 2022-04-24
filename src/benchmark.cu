@@ -58,9 +58,10 @@ void Benchmarker::benchmark_sddmm(BenchmarkResult &bresult){
         m["sddmm_block_over_nnz_but_in_same_row"].push_back((double)(end - start) / CLOCKS_PER_SEC);
 
         start = clock();
-        algo.sddmm_launch_kernel_as_dense_matrix(S, A, C);
+        algo.sddmm_launch_kernel_as_dense_matrix(S, A, C, &gpu_time);
         end = clock();
         m["sddmm_launch_kernel_as_dense_matrix"].push_back((double)(end - start) / CLOCKS_PER_SEC);
+        gpu_m["sddmm_launch_kernel_as_dense_matrix"].push_back(gpu_time);
 
         start = clock();
         algo.sddmm_block_over_nnz_if_same_row_use_shm(S, A, C);
@@ -88,6 +89,7 @@ void Benchmarker::benchmark_sddmm(BenchmarkResult &bresult){
     bresult.result["cusparsesddmm"] = avg(m["cusparsesddmm"]);
 
     bresult.gpu_compute_result["cusparsesddmm"] = avg(gpu_m["cusparsesddmm"]);
+    bresult.gpu_compute_result["sddmm_launch_kernel_as_dense_matrix"] = avg(gpu_m["sddmm_launch_kernel_as_dense_matrix"]);
 }
 
 void Benchmarker::benchmark_spmm(BenchmarkResult &bresult){
