@@ -31,7 +31,7 @@ struct Algo{
     // SDDMM_SPMM
 
     // Naively call our fastest two kernels back to back
-    void sddmm_spmm_naive_back2back_calls(HostSparseMat &, HostDenseMat &, HostDenseMat &);
+    void sddmm_spmm_naive_back2back_calls(HostSparseMat &, HostDenseMat &, HostDenseMat &, float *gpu_compute_time = nullptr);
 
     // block over C, this will cause duplicate works computing S AAT
     void sddmm_spmm_block_over_output(

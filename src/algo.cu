@@ -1051,7 +1051,13 @@ void Algo::sddmm_spmm_block_over_sparse_launch_as_dense_matrix(
     }
 }
 
-void Algo::sddmm_spmm_naive_back2back_calls(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C){
+void Algo::sddmm_spmm_naive_back2back_calls(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C, float *gpu_compute_time){
+    cudaEvent_t start, end;
+    if(gpu_compute_time){
+        cudaEventCreate(&start);
+        cudaEventCreate(&end);
+    }
+
     DeviceSparseMat dS;
     DeviceDenseMat dA, dC;
 
@@ -1061,6 +1067,8 @@ void Algo::sddmm_spmm_naive_back2back_calls(HostSparseMat &S, HostDenseMat &A, H
 
     dim3 threadsPerBlock(1, TILE_WIDTH);
     dim3 numBlocks(S.num_rows, (S.num_cols + TILE_WIDTH - 1) / TILE_WIDTH);
+
+    if(gpu_compute_time) cudaEventRecord(start);
 
     sddmm_launch_kernel_as_dense_matrix_kernel<<<numBlocks, threadsPerBlock>>>(
         S.num_rows, dS.offsets, dS.cols, dS.vals,
@@ -1074,7 +1082,16 @@ void Algo::sddmm_spmm_naive_back2back_calls(HostSparseMat &S, HostDenseMat &A, H
         A.num_cols, dA.vals,
         dC.vals);
 
+    if(gpu_compute_time) cudaEventRecord(end);
+
     dC.copy_to_host(C);
+    // Wait until the default stream reaches this flag
+    if(gpu_compute_time){
+        *gpu_compute_time = 0;
+        cudaEventSynchronize(end);
+        cudaEventElapsedTime(gpu_compute_time, start, end);
+        *gpu_compute_time /= 1000; // milliseconds to seconds
+    }
 }
 
 void Algo::sddmm_seq(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
