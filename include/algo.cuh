@@ -63,7 +63,7 @@ struct CusparseAlgo{
         cusparseDnMatDescr_t &C);
 
     // overload
-    void spmm(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C);
+    void spmm(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C, float *gpu_compute_time = nullptr);
     void sddmm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C, float *gpu_compute_time = nullptr);
     void sddmm_spmm(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C, float *gpu_compute_time = nullptr);
 };

@@ -104,7 +104,9 @@ void Benchmarker::benchmark_spmm(BenchmarkResult &bresult){
     MatrixGenerator mg;
 
     std::map<std::string, std::vector<double>> m;
+    std::map<std::string, std::vector<double>> gpu_m;
     clock_t start, end;
+    float gpu_time;
 
     for(int i = 0; i < NUMEXPS; ++i){
         int S_nnz;
@@ -144,9 +146,10 @@ void Benchmarker::benchmark_spmm(BenchmarkResult &bresult){
         m["spmm_with_shm_jim_transpose_first"].push_back((double)(end - start) / CLOCKS_PER_SEC);
 
         start = clock();
-        cualgo.spmm(S, A, C);
+        cualgo.spmm(S, A, C, &gpu_time);
         end = clock();
         m["cusparsespmm"].push_back((double)(end - start) / CLOCKS_PER_SEC);
+        gpu_m["cusparsespmm"].push_back(gpu_time);
     }
 
     bresult.result["spmm_with_shm"] = avg(m["spmm_with_shm"]);
@@ -154,6 +157,8 @@ void Benchmarker::benchmark_spmm(BenchmarkResult &bresult){
     bresult.result["spmm_with_shm_jim"] = avg(m["spmm_with_shm_jim"]);
     bresult.result["spmm_with_shm_jim_transpose_first"] = avg(m["spmm_with_shm_jim_transpose_first"]);
     bresult.result["cusparsespmm"] = avg(m["cusparsespmm"]);
+
+    bresult.gpu_compute_result["cusparsespmm"] = avg(gpu_m["cusparsespmm"]);
 }
 
 void Benchmarker::benchmark_sddmm_spmm(BenchmarkResult &bresult){
