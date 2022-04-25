@@ -16,7 +16,7 @@ struct Algo{
     // SPMM
     void spmm_with_shm(HostSparseMat &, HostDenseMat &, HostDenseMat &);
     void spmm_no_shm(HostSparseMat &, HostDenseMat &, HostDenseMat &);
-    void spmm_with_shm_jim(HostSparseMat &, HostDenseMat &, HostDenseMat &);
+    void spmm_with_shm_jim(HostSparseMat &, HostDenseMat &, HostDenseMat &, float *gpu_compute_time = nullptr);
     void spmm_with_shm_jim_transpose_first(HostSparseMat &, HostDenseMat &, HostDenseMat &);
 
     // SDDMM

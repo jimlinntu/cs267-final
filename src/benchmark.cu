@@ -136,9 +136,10 @@ void Benchmarker::benchmark_spmm(BenchmarkResult &bresult){
         m["spmm_no_shm"].push_back((double)(end - start) / CLOCKS_PER_SEC);
 
         start = clock();
-        algo.spmm_with_shm_jim(S, A, C);
+        algo.spmm_with_shm_jim(S, A, C, &gpu_time);
         end = clock();
         m["spmm_with_shm_jim"].push_back((double)(end - start) / CLOCKS_PER_SEC);
+        gpu_m["spmm_with_shm_jim"].push_back(gpu_time);
 
         start = clock();
         algo.spmm_with_shm_jim_transpose_first(S, A, C);

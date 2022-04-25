@@ -327,7 +327,13 @@ __global__ void spmm_with_shm_jim_kernel(
     if(j < A_num_cols) C_vals[i * A_num_cols + j] = c;
 }
 
-void Algo::spmm_with_shm_jim(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C){
+void Algo::spmm_with_shm_jim(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C, float *gpu_compute_time){
+    cudaEvent_t start, end;
+    if(gpu_compute_time){
+        cudaEventCreate(&start);
+        cudaEventCreate(&end);
+    }
+
     DeviceSparseMat dS;
     DeviceDenseMat dA, dC;
 
@@ -338,12 +344,22 @@ void Algo::spmm_with_shm_jim(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C)
     dim3 threadsPerBlock(1, TILE_WIDTH);
     dim3 numBlocks(C.num_rows, (C.num_cols + TILE_WIDTH - 1) / TILE_WIDTH);
 
+    if(gpu_compute_time) cudaEventRecord(start);
+
     spmm_with_shm_jim_kernel<<<numBlocks, threadsPerBlock>>>(
         S.num_rows, dS.offsets, dS.cols, dS.vals,
         A.num_cols, dA.vals,
         dC.vals);
 
+    if(gpu_compute_time) cudaEventRecord(end);
+
     dC.copy_to_host(C);
+    if(gpu_compute_time){
+        *gpu_compute_time = 0;
+        cudaEventSynchronize(end);
+        cudaEventElapsedTime(gpu_compute_time, start, end);
+        *gpu_compute_time /= 1000; // milliseconds to seconds
+    }
 }
 
 __global__ void spmm_with_shm_jim_transpose_first_kernel(
