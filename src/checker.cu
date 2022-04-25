@@ -59,7 +59,7 @@ void Checker::check_correctness_sddmm() {
         assert(C == C_cusparse);
 
         std::fill(C.vals, C.vals+S_nnz, 0);
-        algo.sddmm(S, A, C);
+        algo.sddmm_with_tid_mapping(S, A, C);
         assert(C == C_cusparse);
 
         std::fill(C.vals, C.vals+S_nnz, 0);

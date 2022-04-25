@@ -20,7 +20,7 @@ struct Algo{
     void spmm_with_shm_jim_transpose_first(HostSparseMat &, HostDenseMat &, HostDenseMat &, float *gpu_compute_time = nullptr);
 
     // SDDMM
-    void sddmm(HostSparseMat &, HostDenseMat &, HostSparseMat &, float *gpu_compute_time = nullptr);
+    void sddmm_with_tid_mapping(HostSparseMat &, HostDenseMat &, HostSparseMat &, float *gpu_compute_time = nullptr);
     void sddmm_block_over_nnz(HostSparseMat &, HostDenseMat &, HostSparseMat &, float *gpu_compute_time = nullptr);
     void sddmm_block_over_nnz_if_same_row_use_shm(HostSparseMat &, HostDenseMat &, HostSparseMat &, float *gpu_compute_time = nullptr);
     void sddmm_block_over_nnz_but_in_same_row(HostSparseMat &, HostDenseMat &, HostSparseMat &, float *gpu_compute_time = nullptr);
@@ -38,7 +38,6 @@ struct Algo{
             HostSparseMat &, HostDenseMat &, HostDenseMat &);
     void sddmm_spmm_block_over_sparse_launch_as_dense_matrix(
             HostSparseMat &, HostDenseMat &, HostDenseMat &, float *gpu_compute_time = nullptr); // block over S
-    void sddmm_spmm_block_over_sparse_dynamic_parallelism();
 
     void ddmm_seq(HostDenseMat &, HostDenseMat &, HostDenseMat &);
     void sddmm_seq(HostSparseMat &, HostDenseMat &, HostSparseMat &);

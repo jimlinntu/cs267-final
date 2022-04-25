@@ -43,7 +43,7 @@ void Benchmarker::benchmark_sddmm(BenchmarkResult &bresult){
         HostSparseMat C(S_num_rows, S_num_rows, S_nnz, C_offsets, C_cols, C_vals, true);
 
         start = clock();
-        algo.sddmm(S, A, C, &gpu_time);
+        algo.sddmm_with_tid_mapping(S, A, C, &gpu_time);
         end = clock();
         m["sddmm"].push_back((double)(end - start) / CLOCKS_PER_SEC);
         gpu_m["sddmm"].push_back(gpu_time);

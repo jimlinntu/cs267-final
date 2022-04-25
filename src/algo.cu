@@ -543,7 +543,7 @@ __global__ void sddmm_kernel(double *S_vals, int *S_cols, int *S_offsets, int S_
     C_vals[idx] = S_vals[idx] * value; // C_vals[idx]
 }
 
-void Algo::sddmm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C, float *gpu_compute_time){
+void Algo::sddmm_with_tid_mapping(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C, float *gpu_compute_time){
     cudaEvent_t start, end;
     if(gpu_compute_time){
         cudaEventCreate(&start);
