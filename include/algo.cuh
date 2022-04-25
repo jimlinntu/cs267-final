@@ -14,19 +14,19 @@ Header for struct
 
 struct Algo{
     // SPMM
-    void spmm_with_shm(HostSparseMat &, HostDenseMat &, HostDenseMat &);
-    void spmm_no_shm(HostSparseMat &, HostDenseMat &, HostDenseMat &);
+    void spmm_with_shm(HostSparseMat &, HostDenseMat &, HostDenseMat &, float *gpu_compute_time = nullptr);
+    void spmm_no_shm(HostSparseMat &, HostDenseMat &, HostDenseMat &, float *gpu_compute_time = nullptr);
     void spmm_with_shm_jim(HostSparseMat &, HostDenseMat &, HostDenseMat &, float *gpu_compute_time = nullptr);
-    void spmm_with_shm_jim_transpose_first(HostSparseMat &, HostDenseMat &, HostDenseMat &);
+    void spmm_with_shm_jim_transpose_first(HostSparseMat &, HostDenseMat &, HostDenseMat &, float *gpu_compute_time = nullptr);
 
     // SDDMM
-    void sddmm(HostSparseMat &, HostDenseMat &, HostSparseMat &);
-    void sddmm_block_over_nnz(HostSparseMat &, HostDenseMat &, HostSparseMat &);
-    void sddmm_block_over_nnz_if_same_row_use_shm(HostSparseMat &, HostDenseMat &, HostSparseMat &);
-    void sddmm_block_over_nnz_but_in_same_row(HostSparseMat &, HostDenseMat &, HostSparseMat &);
+    void sddmm(HostSparseMat &, HostDenseMat &, HostSparseMat &, float *gpu_compute_time = nullptr);
+    void sddmm_block_over_nnz(HostSparseMat &, HostDenseMat &, HostSparseMat &, float *gpu_compute_time = nullptr);
+    void sddmm_block_over_nnz_if_same_row_use_shm(HostSparseMat &, HostDenseMat &, HostSparseMat &, float *gpu_compute_time = nullptr);
+    void sddmm_block_over_nnz_but_in_same_row(HostSparseMat &, HostDenseMat &, HostSparseMat &, float *gpu_compute_time = nullptr);
     void sddmm_launch_kernel_as_dense_matrix(HostSparseMat &, HostDenseMat &, HostSparseMat &, float *gpu_compute_time = nullptr);
     // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#cuda-dynamic-parallelism
-    void sddmm_dynamic_parallelism(HostSparseMat &, HostDenseMat &, HostSparseMat &);
+    void sddmm_dynamic_parallelism(HostSparseMat &, HostDenseMat &, HostSparseMat &, float *gpu_compute_time = nullptr);
 
     // SDDMM_SPMM
 

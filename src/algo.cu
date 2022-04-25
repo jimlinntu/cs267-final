@@ -226,7 +226,13 @@ __global__ void spmm_no_shm_kernel(double *A_vals, int *A_cols, int *A_offsets, 
     C_vals[gy_C*B_w + gx_C] = value;
 }
 
-void Algo::spmm_no_shm(HostSparseMat &A, HostDenseMat &B, HostDenseMat &C){
+void Algo::spmm_no_shm(HostSparseMat &A, HostDenseMat &B, HostDenseMat &C, float *gpu_compute_time){
+    cudaEvent_t start, end;
+    if(gpu_compute_time){
+        cudaEventCreate(&start);
+        cudaEventCreate(&end);
+    }
+
     DeviceSparseMat dA;
     DeviceDenseMat dB, dC;
     A.to_device(dA);
@@ -237,9 +243,18 @@ void Algo::spmm_no_shm(HostSparseMat &A, HostDenseMat &B, HostDenseMat &C){
     dim3 dimGrid((B_w+TILE_WIDTH-1)/TILE_WIDTH, A_h);
     dim3 dimBlock(TILE_WIDTH, 1);
 
+    if(gpu_compute_time) cudaEventRecord(start);
     spmm_no_shm_kernel<<<dimGrid, dimBlock>>>(dA.vals, dA.cols, dA.offsets, dA.nnz, dB.vals, dC.vals, A_h, A_w, B_h, B_w);
+    if(gpu_compute_time) cudaEventRecord(end);
 
     dC.copy_to_host(C);
+    // Wait until the default stream reaches this flag
+    if(gpu_compute_time){
+        *gpu_compute_time = 0;
+        cudaEventSynchronize(end);
+        cudaEventElapsedTime(gpu_compute_time, start, end);
+        *gpu_compute_time /= 1000; // milliseconds to seconds
+    }
 }
 
 __global__ void spmm_kernel(double *A_vals, int *A_cols, int *A_offsets, int A_nnz, double *B_vals, double *C_vals, int A_h, int A_w, int B_h, int B_w) {
@@ -278,7 +293,13 @@ __global__ void spmm_kernel(double *A_vals, int *A_cols, int *A_offsets, int A_n
 }
 
 
-void Algo::spmm_with_shm(HostSparseMat &A, HostDenseMat &B, HostDenseMat &C){
+void Algo::spmm_with_shm(HostSparseMat &A, HostDenseMat &B, HostDenseMat &C, float *gpu_compute_time){
+    cudaEvent_t start, end;
+    if(gpu_compute_time){
+        cudaEventCreate(&start);
+        cudaEventCreate(&end);
+    }
+
     DeviceSparseMat dA;
     DeviceDenseMat dB, dC;
     A.to_device(dA);
@@ -289,9 +310,21 @@ void Algo::spmm_with_shm(HostSparseMat &A, HostDenseMat &B, HostDenseMat &C){
     dim3 dimGrid((B_w+TILE_WIDTH-1)/TILE_WIDTH, A_h);
     dim3 dimBlock(TILE_WIDTH, 1);
 
+    if(gpu_compute_time) cudaEventRecord(start);
+
     spmm_kernel<<<dimGrid, dimBlock>>>(dA.vals, dA.cols, dA.offsets, dA.nnz, dB.vals, dC.vals, A_h, A_w, B_h, B_w);
 
+    if(gpu_compute_time) cudaEventRecord(end);
+
     dC.copy_to_host(C);
+
+    // Wait until the default stream reaches this flag
+    if(gpu_compute_time){
+        *gpu_compute_time = 0;
+        cudaEventSynchronize(end);
+        cudaEventElapsedTime(gpu_compute_time, start, end);
+        *gpu_compute_time /= 1000; // milliseconds to seconds
+    }
 }
 
 __global__ void spmm_with_shm_jim_kernel(
@@ -417,7 +450,13 @@ __global__ void transpose(
     }
 }
 
-void Algo::spmm_with_shm_jim_transpose_first(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C){
+void Algo::spmm_with_shm_jim_transpose_first(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C, float *gpu_compute_time){
+    cudaEvent_t start, end;
+    if(gpu_compute_time){
+        cudaEventCreate(&start);
+        cudaEventCreate(&end);
+    }
+
     DeviceSparseMat dS;
     DeviceDenseMat dA, dC;
 
@@ -427,6 +466,8 @@ void Algo::spmm_with_shm_jim_transpose_first(HostSparseMat &S, HostDenseMat &A, 
 
     double *AT_vals;
     assert(cudaMalloc(&AT_vals, sizeof(double) * A.num_rows * A.num_cols) == cudaSuccess);
+
+    if(gpu_compute_time) cudaEventRecord(start);
 
     dim3 tpb(DIM, DIM);
     dim3 nb((A.num_rows + DIM - 1)/DIM, (A.num_cols + DIM - 1)/DIM);
@@ -440,8 +481,18 @@ void Algo::spmm_with_shm_jim_transpose_first(HostSparseMat &S, HostDenseMat &A, 
         A.num_rows, A.num_cols, dA.vals, AT_vals,
         dC.vals);
 
+    if(gpu_compute_time) cudaEventRecord(end);
+
     dC.copy_to_host(C);
     assert(cudaFree(AT_vals) == cudaSuccess);
+
+    // Wait until the default stream reaches this flag
+    if(gpu_compute_time){
+        *gpu_compute_time = 0;
+        cudaEventSynchronize(end);
+        cudaEventElapsedTime(gpu_compute_time, start, end);
+        *gpu_compute_time /= 1000; // milliseconds to seconds
+    }
 }
 
 __global__ void sddmm_shm_kernel(double *S_vals, int *S_cols, double *A_vals, double *C_vals, int *tid_to_vid, int *tid_to_rid, int A_w) {
@@ -492,7 +543,12 @@ __global__ void sddmm_kernel(double *S_vals, int *S_cols, int *S_offsets, int S_
     C_vals[idx] = S_vals[idx] * value; // C_vals[idx]
 }
 
-void Algo::sddmm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
+void Algo::sddmm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C, float *gpu_compute_time){
+    cudaEvent_t start, end;
+    if(gpu_compute_time){
+        cudaEventCreate(&start);
+        cudaEventCreate(&end);
+    }
 
     DeviceSparseMat dS, dC;
     DeviceDenseMat dA;
@@ -533,7 +589,11 @@ void Algo::sddmm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
     cudaMemcpy(tid_to_vid_d, tid_to_vid, sizeof(int) * n_threads, cudaMemcpyHostToDevice);
     cudaMemcpy(tid_to_rid_d, tid_to_rid, sizeof(int) * n_threads, cudaMemcpyHostToDevice);
 
+    if(gpu_compute_time) cudaEventRecord(start);
+
     sddmm_shm_kernel<<<dimGrid, dimBlock>>>(dS.vals, dS.cols, dA.vals, dC.vals, tid_to_vid_d, tid_to_rid_d, dA.num_cols);
+
+    if(gpu_compute_time) cudaEventRecord(end);
 
     free(tid_to_vid);
     free(tid_to_rid);
@@ -541,9 +601,22 @@ void Algo::sddmm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
     cudaFree(tid_to_rid_d);
     dC.copy_to_host(C);
 
+    if(gpu_compute_time){
+        *gpu_compute_time = 0;
+        cudaEventSynchronize(end);
+        cudaEventElapsedTime(gpu_compute_time, start, end);
+        *gpu_compute_time /= 1000; // milliseconds to seconds
+    }
+
 }
 
-void Algo::sddmm_block_over_nnz(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
+void Algo::sddmm_block_over_nnz(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C, float *gpu_compute_time){
+    cudaEvent_t start, end;
+    if(gpu_compute_time){
+        cudaEventCreate(&start);
+        cudaEventCreate(&end);
+    }
+
     DeviceSparseMat dS, dC;
     DeviceDenseMat dA;
     S.to_device(dS);
@@ -555,9 +628,20 @@ void Algo::sddmm_block_over_nnz(HostSparseMat &S, HostDenseMat &A, HostSparseMat
     dim3 dimGrid((nnz+TILE_WIDTH-1)/TILE_WIDTH);
     dim3 dimBlock(TILE_WIDTH);
 
+    if(gpu_compute_time) cudaEventRecord(start);
+
     sddmm_kernel<<<dimGrid, dimBlock>>>(dS.vals, dS.cols, dS.offsets, dS.nnz, dA.vals, dC.vals, A_h, A_w);
 
+    if(gpu_compute_time) cudaEventRecord(end);
+
     dC.copy_to_host(C);
+
+    if(gpu_compute_time){
+        *gpu_compute_time = 0;
+        cudaEventSynchronize(end);
+        cudaEventElapsedTime(gpu_compute_time, start, end);
+        *gpu_compute_time /= 1000; // milliseconds to seconds
+    }
 }
 
 __global__ void count_num_blocks_in_each_row(
@@ -630,7 +714,14 @@ __global__ void sddmm_block_over_nnz_in_same_row_kernel(
     // Write back
     if(j != -1) C_vals[start + _j] = S_vals[start + _j] * value;
 }
-void Algo::sddmm_block_over_nnz_but_in_same_row(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
+
+void Algo::sddmm_block_over_nnz_but_in_same_row(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C, float *gpu_compute_time){
+    cudaEvent_t start, end;
+    if(gpu_compute_time){
+        cudaEventCreate(&start);
+        cudaEventCreate(&end);
+    }
+
     DeviceSparseMat dS, dC;
     DeviceDenseMat dA;
 
@@ -646,9 +737,15 @@ void Algo::sddmm_block_over_nnz_but_in_same_row(HostSparseMat &S, HostDenseMat &
     assert(cudaMemset(block_offsets, 0, sizeof(int) * (S.num_rows+1)) == cudaSuccess);
 
     const int num_threads = 256;
+    
+    if(gpu_compute_time) cudaEventRecord(start);
+
     // Parallelize over # of rows
     count_num_blocks_in_each_row<<<(S.num_rows + num_threads - 1)/ num_threads, num_threads>>>(
                 S.num_rows, dS.offsets, block_offsets);
+    
+    
+
     // prefix sum
     // block_offsets[i] = # of blocks that are in [0, i) rows
     thrust::device_ptr<int> ptr(block_offsets);
@@ -663,8 +760,17 @@ void Algo::sddmm_block_over_nnz_but_in_same_row(HostSparseMat &S, HostDenseMat &
             S.num_rows, dS.offsets, dS.cols, dS.vals,
             A.num_cols, dA.vals,
             dC.vals, block_offsets);
+    
+    if(gpu_compute_time) cudaEventRecord(end);
 
     dC.copy_to_host(C);
+
+    if(gpu_compute_time){
+        *gpu_compute_time = 0;
+        cudaEventSynchronize(end);
+        cudaEventElapsedTime(gpu_compute_time, start, end);
+        *gpu_compute_time /= 1000; // milliseconds to seconds
+    }
 
     assert(cudaFree(block_offsets) == cudaSuccess);
 }
@@ -812,7 +918,12 @@ __global__ void sddmm_block_over_nnz_if_same_row_use_shm_kernel(
 }
 
 void Algo::sddmm_block_over_nnz_if_same_row_use_shm(
-        HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
+        HostSparseMat &S, HostDenseMat &A, HostSparseMat &C, float *gpu_compute_time){
+    cudaEvent_t start, end;
+    if(gpu_compute_time){
+        cudaEventCreate(&start);
+        cudaEventCreate(&end);
+    }
 
     DeviceSparseMat dS, dC;
     DeviceDenseMat dA;
@@ -823,13 +934,21 @@ void Algo::sddmm_block_over_nnz_if_same_row_use_shm(
 
     dim3 threadsPerBlock(TILE_WIDTH);
     dim3 numBlocks((S.nnz + TILE_WIDTH - 1) / TILE_WIDTH);
+    if(gpu_compute_time) cudaEventRecord(start);
 
     sddmm_block_over_nnz_if_same_row_use_shm_kernel<<<numBlocks, threadsPerBlock>>>(
         S.num_rows, S.nnz, dS.offsets, dS.cols, dS.vals,
         A.num_cols, dA.vals,
         dC.vals);
-
+    if(gpu_compute_time) cudaEventRecord(end);
+    
     dC.copy_to_host(C);
+    if(gpu_compute_time){
+        *gpu_compute_time = 0;
+        cudaEventSynchronize(end);
+        cudaEventElapsedTime(gpu_compute_time, start, end);
+        *gpu_compute_time /= 1000; // milliseconds to seconds
+    }
 }
 
 __global__ void sddmm_dynamic_parallelism_kernel_compute(
@@ -879,7 +998,13 @@ __global__ void sddmm_dynamic_parallelism_kernel_row(
             C_vals);
 }
 
-void Algo::sddmm_dynamic_parallelism(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
+void Algo::sddmm_dynamic_parallelism(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C, float *gpu_compute_time){
+    cudaEvent_t start, end;
+    if(gpu_compute_time){
+        cudaEventCreate(&start);
+        cudaEventCreate(&end);
+    }
+
     DeviceSparseMat dS, dC;
     DeviceDenseMat dA;
 
@@ -889,12 +1014,20 @@ void Algo::sddmm_dynamic_parallelism(HostSparseMat &S, HostDenseMat &A, HostSpar
 
     // Launch S.num_rows blocks
     const int num_threads = 32; // at least one warp
+    if(gpu_compute_time) cudaEventRecord(start);
     sddmm_dynamic_parallelism_kernel_row<<<(S.num_rows + num_threads - 1)/num_threads, num_threads>>>(
         S.num_rows, dS.offsets, dS.cols, dS.vals,
         A.num_cols, dA.vals,
         dC.vals);
+    if(gpu_compute_time) cudaEventRecord(end);
 
     dC.copy_to_host(C);
+    if(gpu_compute_time){
+        *gpu_compute_time = 0;
+        cudaEventSynchronize(end);
+        cudaEventElapsedTime(gpu_compute_time, start, end);
+        *gpu_compute_time /= 1000; // milliseconds to seconds
+    }
 }
 
 __global__ void sddmm_spmm_block_over_output_kernel(

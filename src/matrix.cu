@@ -4,10 +4,12 @@
 Function for MatrixGenerator
 ******************/
 
+#define ZERO_RATIO 0.7
+
 void MatrixGenerator::generate_sparse_csr(int num_rows_, int num_cols_, int &nnz, int** offsets, int** cols, double** vals) {
     double *tmp_vals = new double[num_rows_ * num_cols_];
     double epsilon = 1e-4;
-    double zero_ratio = 0.7;
+    double zero_ratio = ZERO_RATIO;
     double val;
     nnz = 0;
 
@@ -48,7 +50,7 @@ void MatrixGenerator::generate_sparse_csr(int num_rows_, int num_cols_, int &nnz
 
 void MatrixGenerator::generate_binary_sparse_csr(int num_rows_, int num_cols_, int &nnz, int** offsets, int** cols, double** vals) {
     double *tmp_vals = new double[num_rows_ * num_cols_];
-    double zero_ratio = 0.7;
+    double zero_ratio = ZERO_RATIO;
     double val;
     nnz = 0;
 
