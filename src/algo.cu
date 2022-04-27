@@ -495,6 +495,54 @@ void Algo::spmm_with_shm_jim_transpose_first(HostSparseMat &S, HostDenseMat &A, 
     }
 }
 
+void Algo::dgemm(DeviceDenseMat &A, DeviceDenseMat &B, DeviceDenseMat &C) {
+    // because cublas dgemm is column major, dgemm is actually doing At @ Bt
+    // we want the output C to be row-major, so we can do Ct = Bt @ At (because C = A @ B)
+    // Ct is in column major, so it is equivalent to C in row major
+    // reference: https://github.com/zchee/cuda-sample/blob/master/0_Simple/matrixMulCUBLAS/matrixMulCUBLAS.cpp#L280
+    int m = B.num_cols, k = B.num_rows, n = A.num_rows;
+    int ldb = m, lda = k, ldc = m;
+    double _alpha = 1.0, _beta = 0.0;
+    const double *alpha = &_alpha, *beta = &_beta;
+    const double *A_vals = A.vals, *B_vals = B.vals;
+    double *C_vals = C.vals;
+    cublasHandle_t handle;
+    cublasCreate(&handle);
+    cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, alpha, B_vals, ldb, A_vals, lda, beta, C_vals, ldc);
+}
+
+void Algo::spmm_by_dgemm(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C, float *gpu_compute_time){
+    cudaEvent_t start, end;
+    if(gpu_compute_time){
+        cudaEventCreate(&start);
+        cudaEventCreate(&end);
+    }
+
+    double *S_d_vals = new double[S.num_rows * S.num_cols];
+    HostDenseMat S_d(S.num_rows, S.num_cols, S_d_vals, true); // dense S
+    S.to_dense(S_d);
+
+    DeviceDenseMat dS, dA, dC;
+    S_d.to_device(dS);
+    A.to_device(dA);
+    C.to_device(dC);
+
+    if(gpu_compute_time) cudaEventRecord(start);
+
+    dgemm(dS, dA, dC);
+
+    if(gpu_compute_time) cudaEventRecord(end);
+
+    dC.copy_to_host(C);
+
+    if(gpu_compute_time){
+        *gpu_compute_time = 0;
+        cudaEventSynchronize(end);
+        cudaEventElapsedTime(gpu_compute_time, start, end);
+        *gpu_compute_time /= 1000; // milliseconds to seconds
+    }
+}
+
 __global__ void sddmm_shm_kernel(double *S_vals, int *S_cols, double *A_vals, double *C_vals, int *tid_to_vid, int *tid_to_rid, int A_w) {
     int lx = threadIdx.x, gx = blockIdx.x * TILE_WIDTH + lx;
 

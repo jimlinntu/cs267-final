@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
+#include <cublas_v2.h>
 
 #include "./matrix.cuh"
 
@@ -18,6 +19,7 @@ struct Algo{
     void spmm_no_shm(HostSparseMat &, HostDenseMat &, HostDenseMat &, float *gpu_compute_time = nullptr);
     void spmm_with_shm_jim(HostSparseMat &, HostDenseMat &, HostDenseMat &, float *gpu_compute_time = nullptr);
     void spmm_with_shm_jim_transpose_first(HostSparseMat &, HostDenseMat &, HostDenseMat &, float *gpu_compute_time = nullptr);
+    void spmm_by_dgemm(HostSparseMat &, HostDenseMat &, HostDenseMat &, float *gpu_compute_time = nullptr);
 
     // SDDMM
     void sddmm_with_tid_mapping(HostSparseMat &, HostDenseMat &, HostSparseMat &, float *gpu_compute_time = nullptr);
@@ -41,6 +43,9 @@ struct Algo{
 
     void ddmm_seq(HostDenseMat &, HostDenseMat &, HostDenseMat &);
     void sddmm_seq(HostSparseMat &, HostDenseMat &, HostSparseMat &);
+    
+    // cublas helper
+    void dgemm(DeviceDenseMat &, DeviceDenseMat &, DeviceDenseMat &);
 };
 
 
