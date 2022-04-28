@@ -5,6 +5,9 @@
 #include <iomanip>
 #include <assert.h>
 
+#ifndef ZERO_RATIO
+#define ZERO_RATIO 0.7
+#endif
 
 struct HostDenseMat;
 struct DeviceDenseMat;

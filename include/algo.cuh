@@ -6,7 +6,9 @@
 
 #include "./matrix.cuh"
 
+#ifndef TILE_WIDTH
 #define TILE_WIDTH 16
+#endif
 
 /*********************
 Header for struct 

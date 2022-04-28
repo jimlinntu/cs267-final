@@ -15,8 +15,8 @@ EXEC = main
 all: $(OBJS) main.o
 	nvcc -std c++14 -arch sm_60 $(INC) main.o $(OBJS) $(LIBS) -o $(EXEC)
 main.o: main.cu
-	nvcc -std c++14 -arch sm_60 -rdc true -c $< -o $@
+	nvcc -std c++14 -arch sm_60 -rdc true $(CPPFLAGS) -c $< -o $@
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cu $(INC_DIR)/%.cuh
-	nvcc -std c++14 -arch sm_60 -rdc true -c $< -o $@
+	nvcc -std c++14 -arch sm_60 -rdc true $(CPPFLAGS) -c $< -o $@
 clean:
 	rm bin/* *.o $(EXEC)

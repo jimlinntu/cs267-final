@@ -22,6 +22,10 @@ int main(){
     // Fix the random seed so that things are reproducible
     srand(9999);
 
+    std::cout << "===== Macro Variable Setting =====\n";
+    std::cout << "ZERO_RATIO: " << ZERO_RATIO << std::endl;
+    std::cout << "TILE_WIDTH: " << TILE_WIDTH << std::endl;
+
     // Test correctness
     Checker ch;
     ch.check_correctness_sddmm();
