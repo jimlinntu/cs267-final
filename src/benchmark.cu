@@ -229,6 +229,12 @@ void Benchmarker::benchmark_sddmm_spmm(BenchmarkResult &bresult){
         HostDenseMat C(S_num_rows, A_num_cols, C_vals, true);
 
         start = clock();
+        algo.sddmm_spmm_by_dgemm(S, A, C, &gpu_time);
+        end = clock();
+        m["sddmm_spmm_by_dgemm"].push_back((double)(end - start) / CLOCKS_PER_SEC);
+        gpu_m["sddmm_spmm_by_dgemm"].push_back(gpu_time);
+
+        start = clock();
         algo.sddmm_spmm_block_over_sparse_launch_as_dense_matrix(S, A, C, &gpu_time);
         end = clock();
         m["sddmm_spmm_block_over_sparse_launch_as_dense_matrix"].push_back((double)(end - start) / CLOCKS_PER_SEC);
@@ -255,11 +261,13 @@ void Benchmarker::benchmark_sddmm_spmm(BenchmarkResult &bresult){
         gpu_m["cusparse_sddmm_spmm"].push_back(gpu_time);
     }
 
+    bresult.result["sddmm_spmm_by_dgemm"] = avg(m["sddmm_spmm_by_dgemm"]);
     bresult.result["sddmm_spmm_block_over_sparse_launch_as_dense_matrix"] = avg(m["sddmm_spmm_block_over_sparse_launch_as_dense_matrix"]);
     /* bresult.result["sddmm_spmm_block_over_output"] = avg(m["sddmm_spmm_block_over_output"]); */
     bresult.result["sddmm_spmm_naive_back2back_calls"] = avg(m["sddmm_spmm_naive_back2back_calls"]);
     bresult.result["cusparse_sddmm_spmm"] = avg(m["cusparse_sddmm_spmm"]);
 
+    bresult.gpu_compute_result["sddmm_spmm_by_dgemm"] = avg(gpu_m["sddmm_spmm_by_dgemm"]);
     bresult.gpu_compute_result["sddmm_spmm_block_over_sparse_launch_as_dense_matrix"] =\
         avg(gpu_m["sddmm_spmm_block_over_sparse_launch_as_dense_matrix"]);
     bresult.gpu_compute_result["sddmm_spmm_naive_back2back_calls"] = avg(gpu_m["sddmm_spmm_naive_back2back_calls"]);

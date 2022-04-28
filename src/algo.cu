@@ -1353,6 +1353,14 @@ void Algo::sddmm_spmm_naive_back2back_calls(HostSparseMat &S, HostDenseMat &A, H
     }
 }
 
+void Algo::sddmm_spmm_by_dgemm(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C, float *gpu_compute_time) {
+    float gt1 = .0, gt2 = .0;
+    sddmm_by_dgemm(S, A, S, &gt1);
+    spmm_by_dgemm(S, A, C, &gt2);
+    if(gpu_compute_time)
+        *gpu_compute_time = gt1 + gt2;
+}
+
 void Algo::sddmm_seq(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C){
     for(int i = 0; i < C.num_rows; i++){
         int row_C = i;
