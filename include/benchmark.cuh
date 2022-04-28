@@ -21,7 +21,7 @@ struct BenchmarkResult{
 };
 
 struct Benchmarker{
-    void benchmark_sddmm(BenchmarkResult &bresult);
-    void benchmark_spmm(BenchmarkResult &bresult);
-    void benchmark_sddmm_spmm(BenchmarkResult &bresult);
+    void benchmark_sddmm(BenchmarkResult &bresult, int S_h, int A_w);
+    void benchmark_spmm(BenchmarkResult &bresult, int S_h, int S_w, int A_w);
+    void benchmark_sddmm_spmm(BenchmarkResult &bresult, int S_h, int A_w);
 };

@@ -6,9 +6,9 @@ double avg(std::vector<double> &v){
     return a / (double)v.size();
 }
 
-void Benchmarker::benchmark_sddmm(BenchmarkResult &bresult){
-    const int S_num_rows = 8023;
-    const int A_num_cols = 1049;
+void Benchmarker::benchmark_sddmm(BenchmarkResult &bresult, int S_h, int A_w){
+    const int S_num_rows = S_h;
+    const int A_num_cols = A_w;
 
     Algo algo;
     CusparseAlgo cualgo;
@@ -110,11 +110,11 @@ void Benchmarker::benchmark_sddmm(BenchmarkResult &bresult){
     bresult.gpu_compute_result["cusparsesddmm"] = avg(gpu_m["cusparsesddmm"]);
 }
 
-void Benchmarker::benchmark_spmm(BenchmarkResult &bresult){
-    const int S_num_rows = 8023;
-    const int S_num_cols = 3928;
+void Benchmarker::benchmark_spmm(BenchmarkResult &bresult, int S_h, int S_w, int A_w){
+    const int S_num_rows = S_h;
+    const int S_num_cols = S_w;
     const int A_num_rows = S_num_cols;
-    const int A_num_cols = 1049;
+    const int A_num_cols = A_w;
 
     Algo algo;
     CusparseAlgo cualgo;
@@ -195,11 +195,11 @@ void Benchmarker::benchmark_spmm(BenchmarkResult &bresult){
     bresult.gpu_compute_result["cusparsespmm"] = avg(gpu_m["cusparsespmm"]);
 }
 
-void Benchmarker::benchmark_sddmm_spmm(BenchmarkResult &bresult){
-    const int S_num_rows = 8023;
+void Benchmarker::benchmark_sddmm_spmm(BenchmarkResult &bresult, int S_h, int A_w){
+    const int S_num_rows = S_h;
     const int S_num_cols = S_num_rows;
     const int A_num_rows = S_num_rows;
-    const int A_num_cols = 1049;
+    const int A_num_cols = A_w;
 
     Algo algo;
     CusparseAlgo cualgo;

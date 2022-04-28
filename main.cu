@@ -18,7 +18,28 @@
 #include <time.h>
 
 
-int main(){
+int main(int argc, char* argv[]){
+    int S_h, S_w, A_h, A_w;
+
+    if(argc != 3) {
+        S_h = 1024, A_w  = 1024;
+        std::cout << "The arguments are incorrect, and it should be:\n";
+        std::cout << "./main <S_height> <A_width>\n";
+        std::cout << "We set (S_h, A_w) to (" << S_h << " ," << A_w << ") by default\n"; 
+        
+    } else {
+        S_h = atoi(argv[1]), A_w = atoi(argv[2]);
+    }
+ 
+    S_w = S_h; // Assume S is a square matrix
+    A_h = S_w; // A_h should be equal to S_w
+
+    std::cout << "===== Matrix Dimension =====\n";
+    std::cout << "S_height: " << S_h << "\n";
+    std::cout << "S_width: " << S_w << "\n";
+    std::cout << "A_height: " << A_h << "\n";
+    std::cout << "A_width: " << A_w << "\n";
+
     // Fix the random seed so that things are reproducible
     srand(9999);
 
@@ -39,18 +60,18 @@ int main(){
     Benchmarker bm;
     BenchmarkResult sddmm_result, spmm_result, sddmm_spmm_result;
 
-    bm.benchmark_sddmm(sddmm_result);
+    bm.benchmark_sddmm(sddmm_result, S_h, A_w);
 
     std::cout << "====== sddmm benchmark result: =====\n";
     std::cout << sddmm_result;
     std::cout << "====================================\n";
 
-    bm.benchmark_spmm(spmm_result);
+    bm.benchmark_spmm(spmm_result, S_h, S_w, A_w);
     std::cout << "====== spmm benchmark result: =====\n";
     std::cout << spmm_result;
     std::cout << "====================================\n";
 
-    bm.benchmark_sddmm_spmm(sddmm_spmm_result);
+    bm.benchmark_sddmm_spmm(sddmm_spmm_result, S_h, A_w);
     std::cout << "=== sddmm_spmm benchmark result: ===\n";
     std::cout << sddmm_spmm_result;
     std::cout << "====================================\n";
