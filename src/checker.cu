@@ -73,6 +73,10 @@ void Checker::check_correctness_sddmm() {
         std::fill(C.vals, C.vals+S_nnz, 0);
         algo.sddmm_dynamic_parallelism(S, A, C);
         assert(C == C_cusparse);
+        
+        std::fill(C.vals, C.vals+S_nnz, 0);
+        algo.sddmm_by_dgemm(S, A, C);
+        assert(C == C_cusparse);
 
         // Clean up
         delete[] C_vals_cusparse;
@@ -136,6 +140,11 @@ void Checker::check_correctness_spmm() {
         std::fill(C.vals, C.vals+S_num_rows*A_num_cols, 0);
         algo.spmm_with_shm_jim_transpose_first(S, A, C);
         assert(C == C_cusparse);
+
+        std::fill(C.vals, C.vals+S_num_rows*A_num_cols, 0);
+        algo.spmm_by_dgemm(S, A, C);
+        assert(C == C_cusparse);
+        
     }
 }
 

@@ -117,6 +117,14 @@ void HostDenseMat::to_device(DeviceDenseMat &d){
     assert(cudaMemcpy(d.vals, vals, num_rows * num_cols * sizeof(double), cudaMemcpyHostToDevice) == cudaSuccess);
 }
 
+void HostDenseMat::to_sparse(HostSparseMat &m){
+    int p = 0;
+    for(int i = 0; i < num_rows; i++)
+        for(int j = 0; j < num_cols; j++) 
+            if(vals[i*num_cols+j] > .0 && p < m.nnz)
+                m.vals[p++] = vals[i*num_cols+j];
+}
+
 std::ostream& operator<<(std::ostream &os, const HostDenseMat &obj){
     for(int i = 0; i < obj.num_rows; ++i){
         for(int j = 0; j < obj.num_cols; ++j){

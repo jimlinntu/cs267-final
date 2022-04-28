@@ -511,6 +511,12 @@ void Algo::dgemm(DeviceDenseMat &A, DeviceDenseMat &B, DeviceDenseMat &C) {
     cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, alpha, B_vals, ldb, A_vals, lda, beta, C_vals, ldc);
 }
 
+__global__ void elementwise_mult(double* A_vals, double* B_vals, double* C_vals, int m) {
+    int i = blockDim.x * blockIdx.x + threadIdx.x;
+    if(i >= m * m) return;
+    C_vals[i] = A_vals[i] * B_vals[i];
+}
+
 void Algo::spmm_by_dgemm(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C, float *gpu_compute_time){
     cudaEvent_t start, end;
     if(gpu_compute_time){
@@ -518,12 +524,12 @@ void Algo::spmm_by_dgemm(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C, flo
         cudaEventCreate(&end);
     }
 
-    double *S_d_vals = new double[S.num_rows * S.num_cols];
-    HostDenseMat S_d(S.num_rows, S.num_cols, S_d_vals, true); // dense S
-    S.to_dense(S_d);
+    double *Sd_vals = new double[S.num_rows * S.num_cols];
+    HostDenseMat Sd(S.num_rows, S.num_cols, Sd_vals, true); // dense S
+    S.to_dense(Sd);
 
     DeviceDenseMat dS, dA, dC;
-    S_d.to_device(dS);
+    Sd.to_device(dS);
     A.to_device(dA);
     C.to_device(dC);
 
@@ -534,6 +540,62 @@ void Algo::spmm_by_dgemm(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C, flo
     if(gpu_compute_time) cudaEventRecord(end);
 
     dC.copy_to_host(C);
+
+    if(gpu_compute_time){
+        *gpu_compute_time = 0;
+        cudaEventSynchronize(end);
+        cudaEventElapsedTime(gpu_compute_time, start, end);
+        *gpu_compute_time /= 1000; // milliseconds to seconds
+    }
+}
+
+void Algo::sddmm_by_dgemm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C, float *gpu_compute_time) {
+    cudaEvent_t start, end;
+    if(gpu_compute_time){
+        cudaEventCreate(&start);
+        cudaEventCreate(&end);
+    }
+
+    // Create transposed A
+    double *At_vals = new double[A.num_cols * A.num_rows];
+    for(int i = 0; i < A.num_rows; i++)
+        for(int j = 0; j < A.num_cols; j++)
+            At_vals[j*A.num_rows+i] = A[i*A.num_cols+j]; // At[j][i] = A[i][j]
+
+    HostDenseMat At(A.num_cols, A.num_rows, At_vals, true);
+
+    // Create dense C
+    double *Cds_vals = new double[A.num_rows * A.num_rows];
+    std::fill(Cds_vals, Cds_vals+A.num_rows * A.num_rows, 0);
+    HostDenseMat Cds(A.num_rows, A.num_rows, Cds_vals, true);
+
+    // Create dense S
+    double *Sds_vals = new double[A.num_rows * A.num_rows];
+    HostDenseMat Sds(S.num_rows, S.num_cols, Sds_vals, true);
+    S.to_dense(Sds);
+
+    DeviceDenseMat dSds, dA, dAt, dCds;
+
+    Sds.to_device(dSds);
+    A.to_device(dA);
+    At.to_device(dAt);
+    Cds.to_device(dCds);
+
+
+    if(gpu_compute_time) cudaEventRecord(start);
+
+    dgemm(dA, dAt, dCds);
+
+    dim3 threadsPerBlock(TILE_WIDTH);
+    dim3 numBlocks((C.num_rows*C.num_cols + TILE_WIDTH - 1) / TILE_WIDTH);
+
+    elementwise_mult<<<numBlocks, threadsPerBlock>>>(dSds.vals, dCds.vals, dCds.vals, dSds.num_rows);
+
+    if(gpu_compute_time) cudaEventRecord(end);
+
+    dCds.copy_to_host(Cds);
+    // Cds to sparse
+    Cds.to_sparse(C);
 
     if(gpu_compute_time){
         *gpu_compute_time = 0;

@@ -21,6 +21,7 @@ struct HostDenseMat{
     HostDenseMat(int num_rows_, int num_cols_, double *vals_, bool to_delete_);
     ~HostDenseMat();
     void to_device(DeviceDenseMat &d);
+    void to_sparse(HostSparseMat &m);
     friend std::ostream& operator<<(std::ostream &os, const HostDenseMat &obj);
     // overload set
     double & operator [](int i) {return vals[i];}

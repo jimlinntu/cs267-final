@@ -29,6 +29,7 @@ struct Algo{
     void sddmm_launch_kernel_as_dense_matrix(HostSparseMat &, HostDenseMat &, HostSparseMat &, float *gpu_compute_time = nullptr);
     // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#cuda-dynamic-parallelism
     void sddmm_dynamic_parallelism(HostSparseMat &, HostDenseMat &, HostSparseMat &, float *gpu_compute_time = nullptr);
+    void sddmm_by_dgemm(HostSparseMat &, HostDenseMat &, HostSparseMat &, float *gpu_compute_time = nullptr);
 
     // SDDMM_SPMM
 

@@ -45,8 +45,14 @@ void Benchmarker::benchmark_sddmm(BenchmarkResult &bresult){
         start = clock();
         algo.sddmm_with_tid_mapping(S, A, C, &gpu_time);
         end = clock();
-        m["sddmm"].push_back((double)(end - start) / CLOCKS_PER_SEC);
-        gpu_m["sddmm"].push_back(gpu_time);
+        m["sddmm_with_tid_mapping"].push_back((double)(end - start) / CLOCKS_PER_SEC);
+        gpu_m["sddmm_with_tid_mapping"].push_back(gpu_time);
+
+        start = clock();
+        algo.sddmm_by_dgemm(S, A, C, &gpu_time);
+        end = clock();
+        m["sddmm_by_dgemm"].push_back((double)(end - start) / CLOCKS_PER_SEC);
+        gpu_m["sddmm_by_dgemm"].push_back(gpu_time);
 
         start = clock();
         algo.sddmm_block_over_nnz(S, A, C, &gpu_time);
@@ -85,7 +91,8 @@ void Benchmarker::benchmark_sddmm(BenchmarkResult &bresult){
         gpu_m["cusparsesddmm"].push_back(gpu_time);
     }
 
-    bresult.result["sddmm"] = avg(m["sddmm"]);
+    bresult.result["sddmm_with_tid_mapping"] = avg(m["sddmm_with_tid_mapping"]);
+    bresult.result["sddmm_by_dgemm"] = avg(m["sddmm_by_dgemm"]);
     bresult.result["sddmm_block_over_nnz_wo_shm"] = avg(m["sddmm_block_over_nnz_wo_shm"]);
     bresult.result["sddmm_block_over_nnz_but_in_same_row"] = avg(m["sddmm_block_over_nnz_but_in_same_row"]);
     bresult.result["sddmm_launch_kernel_as_dense_matrix"] = avg(m["sddmm_launch_kernel_as_dense_matrix"]);
@@ -93,7 +100,8 @@ void Benchmarker::benchmark_sddmm(BenchmarkResult &bresult){
     bresult.result["sddmm_dynamic_parallelism"] = avg(m["sddmm_dynamic_parallelism"]);
     bresult.result["cusparsesddmm"] = avg(m["cusparsesddmm"]);
 
-    bresult.gpu_compute_result["sddmm"] = avg(gpu_m["sddmm"]);
+    bresult.gpu_compute_result["sddmm_with_tid_mapping"] = avg(gpu_m["sddmm_with_tid_mapping"]);
+    bresult.gpu_compute_result["sddmm_by_dgemm"] = avg(gpu_m["sddmm_by_dgemm"]);
     bresult.gpu_compute_result["sddmm_block_over_nnz_wo_shm"] = avg(gpu_m["sddmm_block_over_nnz_wo_shm"]);
     bresult.gpu_compute_result["sddmm_block_over_nnz_but_in_same_row"] = avg(gpu_m["sddmm_block_over_nnz_but_in_same_row"]);
     bresult.gpu_compute_result["sddmm_launch_kernel_as_dense_matrix"] = avg(gpu_m["sddmm_launch_kernel_as_dense_matrix"]);
