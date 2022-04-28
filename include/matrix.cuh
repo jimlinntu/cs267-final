@@ -5,8 +5,6 @@
 #include <iomanip>
 #include <assert.h>
 
-#ifndef MATRIX
-#define MATRIX
 
 struct HostDenseMat;
 struct DeviceDenseMat;
@@ -94,5 +92,3 @@ struct MatrixGenerator{
     void generate_binary_sparse_csr(int, int, int&, int**, int**, double**);
     void generate_dense(int, int, double**);
 };
-
-#endif
