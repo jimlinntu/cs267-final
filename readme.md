@@ -18,3 +18,8 @@ make
 make clean # important: must clean *.o file before we make again
 make CPPFLAGS="-DZERO_RATIO=0.6 -DTILE_WIDTH=32"
 ```
+
+## How to Run with Customized Dimension
+```bash
+./main <S_height> <A_width>
+```
