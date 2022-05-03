@@ -6,6 +6,7 @@ void Checker::check_correctness_sddmm() {
     MatrixGenerator mg;
     // Initialize algorithms
     Algo algo;
+    CublasAlgo cublasalgo;
     CusparseAlgo cualgo;
 
     for(int i = 0; i < num_testcases; ++i){
@@ -75,7 +76,7 @@ void Checker::check_correctness_sddmm() {
         assert(C == C_cusparse);
         
         std::fill(C.vals, C.vals+S_nnz, 0);
-        algo.sddmm_by_dgemm(S, A, C);
+        cublasalgo.sddmm_by_dgemm(S, A, C);
         assert(C == C_cusparse);
 
         // Clean up
@@ -90,6 +91,7 @@ void Checker::check_correctness_spmm() {
     MatrixGenerator mg;
     // Initialize algorithms
     Algo algo;
+    CublasAlgo cublasalgo;
     CusparseAlgo cualgo;
 
     for(int i = 0; i < num_testcases; ++i){
@@ -142,7 +144,7 @@ void Checker::check_correctness_spmm() {
         assert(C == C_cusparse);
 
         std::fill(C.vals, C.vals+S_num_rows*A_num_cols, 0);
-        algo.spmm_by_dgemm(S, A, C);
+        cublasalgo.spmm_by_dgemm(S, A, C);
         assert(C == C_cusparse);
         
     }
@@ -154,6 +156,7 @@ void Checker::check_correctness_sddmm_spmm(){
     MatrixGenerator mg;
     // Initialize algorithms
     Algo algo;
+    CublasAlgo cublasalgo;
     CusparseAlgo cualgo;
 
     for(int i = 0; i < num_testcases; ++i){
@@ -199,7 +202,7 @@ void Checker::check_correctness_sddmm_spmm(){
         assert(C == C_cusparse);
 
         std::fill(C.vals, C.vals+S_num_rows*A_num_cols, 0);
-        algo.sddmm_spmm_by_dgemm(S, A, C);
+        cublasalgo.sddmm_spmm_by_dgemm(S, A, C);
         assert(C == C_cusparse);
     }
 }

@@ -11,6 +11,7 @@ void Benchmarker::benchmark_sddmm(BenchmarkResult &bresult, int S_h, int A_w){
     const int A_num_cols = A_w;
 
     Algo algo;
+    CublasAlgo cublasalgo;
     CusparseAlgo cualgo;
 
     MatrixGenerator mg;
@@ -49,7 +50,7 @@ void Benchmarker::benchmark_sddmm(BenchmarkResult &bresult, int S_h, int A_w){
         gpu_m["sddmm_with_tid_mapping"].push_back(gpu_time);
 
         start = clock();
-        algo.sddmm_by_dgemm(S, A, C, &gpu_time);
+        cublasalgo.sddmm_by_dgemm(S, A, C, &gpu_time);
         end = clock();
         m["sddmm_by_dgemm"].push_back((double)(end - start) / CLOCKS_PER_SEC);
         gpu_m["sddmm_by_dgemm"].push_back(gpu_time);
@@ -117,6 +118,7 @@ void Benchmarker::benchmark_spmm(BenchmarkResult &bresult, int S_h, int S_w, int
     const int A_num_cols = A_w;
 
     Algo algo;
+    CublasAlgo cublasalgo;
     CusparseAlgo cualgo;
 
     MatrixGenerator mg;
@@ -162,7 +164,7 @@ void Benchmarker::benchmark_spmm(BenchmarkResult &bresult, int S_h, int S_w, int
         gpu_m["spmm_with_shm_jim"].push_back(gpu_time);
         
         start = clock();
-        algo.spmm_by_dgemm(S, A, C, &gpu_time);
+        cublasalgo.spmm_by_dgemm(S, A, C, &gpu_time);
         end = clock();
         m["spmm_by_dgemm"].push_back((double)(end - start) / CLOCKS_PER_SEC);
         gpu_m["spmm_by_dgemm"].push_back(gpu_time);
@@ -202,6 +204,7 @@ void Benchmarker::benchmark_sddmm_spmm(BenchmarkResult &bresult, int S_h, int A_
     const int A_num_cols = A_w;
 
     Algo algo;
+    CublasAlgo cublasalgo;
     CusparseAlgo cualgo;
 
     MatrixGenerator mg;
@@ -229,7 +232,7 @@ void Benchmarker::benchmark_sddmm_spmm(BenchmarkResult &bresult, int S_h, int A_
         HostDenseMat C(S_num_rows, A_num_cols, C_vals, true);
 
         start = clock();
-        algo.sddmm_spmm_by_dgemm(S, A, C, &gpu_time);
+        cublasalgo.sddmm_spmm_by_dgemm(S, A, C, &gpu_time);
         end = clock();
         m["sddmm_spmm_by_dgemm"].push_back((double)(end - start) / CLOCKS_PER_SEC);
         gpu_m["sddmm_spmm_by_dgemm"].push_back(gpu_time);

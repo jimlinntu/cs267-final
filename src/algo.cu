@@ -495,7 +495,7 @@ void Algo::spmm_with_shm_jim_transpose_first(HostSparseMat &S, HostDenseMat &A, 
     }
 }
 
-void Algo::dgemm(DeviceDenseMat &A, DeviceDenseMat &B, DeviceDenseMat &C, cublasOperation_t transB) {
+void CublasAlgo::dgemm(DeviceDenseMat &A, DeviceDenseMat &B, DeviceDenseMat &C, cublasOperation_t transB) {
     // because cublas dgemm is column major, dgemm is actually doing At @ Bt
     // we want the output C to be row-major, so we can do Ct = Bt @ At (because C = A @ B)
     // Ct is in column major, so it is equivalent to C in row major
@@ -529,7 +529,7 @@ __global__ void elementwise_mult(double* A_vals, double* B_vals, double* C_vals,
     C_vals[i] = A_vals[i] * B_vals[i];
 }
 
-void Algo::spmm_by_dgemm(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C, float *gpu_compute_time){
+void CublasAlgo::spmm_by_dgemm(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C, float *gpu_compute_time){
     cudaEvent_t start, end;
     if(gpu_compute_time){
         cudaEventCreate(&start);
@@ -561,7 +561,7 @@ void Algo::spmm_by_dgemm(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C, flo
     }
 }
 
-void Algo::sddmm_by_dgemm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C, float *gpu_compute_time) {
+void CublasAlgo::sddmm_by_dgemm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C, float *gpu_compute_time) {
     cudaEvent_t start, end;
     if(gpu_compute_time){
         cudaEventCreate(&start);
@@ -1363,7 +1363,7 @@ void Algo::sddmm_spmm_naive_back2back_calls(HostSparseMat &S, HostDenseMat &A, H
     }
 }
 
-void Algo::sddmm_spmm_by_dgemm(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C, float *gpu_compute_time) {
+void CublasAlgo::sddmm_spmm_by_dgemm(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C, float *gpu_compute_time) {
     float gt1 = .0, gt2 = .0;
     sddmm_by_dgemm(S, A, S, &gt1);
     spmm_by_dgemm(S, A, C, &gt2);

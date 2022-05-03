@@ -21,7 +21,6 @@ struct Algo{
     void spmm_no_shm(HostSparseMat &, HostDenseMat &, HostDenseMat &, float *gpu_compute_time = nullptr);
     void spmm_with_shm_jim(HostSparseMat &, HostDenseMat &, HostDenseMat &, float *gpu_compute_time = nullptr);
     void spmm_with_shm_jim_transpose_first(HostSparseMat &, HostDenseMat &, HostDenseMat &, float *gpu_compute_time = nullptr);
-    void spmm_by_dgemm(HostSparseMat &, HostDenseMat &, HostDenseMat &, float *gpu_compute_time = nullptr);
 
     // SDDMM
     void sddmm_with_tid_mapping(HostSparseMat &, HostDenseMat &, HostSparseMat &, float *gpu_compute_time = nullptr);
@@ -31,7 +30,6 @@ struct Algo{
     void sddmm_launch_kernel_as_dense_matrix(HostSparseMat &, HostDenseMat &, HostSparseMat &, float *gpu_compute_time = nullptr);
     // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#cuda-dynamic-parallelism
     void sddmm_dynamic_parallelism(HostSparseMat &, HostDenseMat &, HostSparseMat &, float *gpu_compute_time = nullptr);
-    void sddmm_by_dgemm(HostSparseMat &, HostDenseMat &, HostSparseMat &, float *gpu_compute_time = nullptr);
 
     // SDDMM_SPMM
 
@@ -43,19 +41,22 @@ struct Algo{
             HostSparseMat &, HostDenseMat &, HostDenseMat &);
     void sddmm_spmm_block_over_sparse_launch_as_dense_matrix(
             HostSparseMat &, HostDenseMat &, HostDenseMat &, float *gpu_compute_time = nullptr); // block over S
-    void sddmm_spmm_by_dgemm(
-            HostSparseMat &, HostDenseMat &, HostDenseMat &, float *gpu_compute_time = nullptr);
 
     void ddmm_seq(HostDenseMat &, HostDenseMat &, HostDenseMat &);
     void sddmm_seq(HostSparseMat &, HostDenseMat &, HostSparseMat &);
     
+};
+
+struct CublasAlgo{
+    void sddmm_by_dgemm(HostSparseMat &, HostDenseMat &, HostSparseMat &, float *gpu_compute_time = nullptr);
+    void sddmm_spmm_by_dgemm(
+            HostSparseMat &, HostDenseMat &, HostDenseMat &, float *gpu_compute_time = nullptr);
+    void spmm_by_dgemm(HostSparseMat &, HostDenseMat &, HostDenseMat &, float *gpu_compute_time = nullptr);
     // cublas helper
     // C = A@B (B might be tranposed depending on transB value)
     void dgemm(DeviceDenseMat &A, DeviceDenseMat &B, DeviceDenseMat &C,
             cublasOperation_t transB = CUBLAS_OP_N);
 };
-
-
 
 struct CusparseAlgo{
     void spmm(
