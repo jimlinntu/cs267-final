@@ -637,23 +637,30 @@ __global__ void sddmm_shm_kernel(double *S_vals, int *S_cols, double *A_vals, do
         C_vals[tid_to_vid[gx]] = S_vals[tid_to_vid[gx]] * value;
 }
 
-__global__ void sddmm_kernel(double *S_vals, int *S_cols, int *S_offsets, int S_nnz, double *A_vals, double *C_vals, int A_h, int A_w) {
-    int idx = blockIdx.x * TILE_WIDTH + threadIdx.x;
-    if(idx >= S_nnz) return;
-    int col_C = S_cols[idx];
-    int row_C;
+__global__ void sddmm_block_over_nnz_kernel(double *S_vals, int *S_cols, int *S_offsets, int S_nnz, double *A_vals, double *C_vals, int A_h, int A_w) {
+    int _j = blockIdx.x * TILE_WIDTH + threadIdx.x;
+    if(_j >= S_nnz) return;
+    int i;
+    int j = S_cols[_j];
 
-    int i = 0;
-    for(; i < A_h; i++) // find where the index sits
-        if(S_offsets[i] > idx)
-            break;
-    row_C = i-1;
+    int l = 0, r = A_h;
+    int mid;
 
+    // NOTE: there might be branch divergence for a block of threads
+    while(l < r){
+        mid = (l + r) / 2;
+        if(S_offsets[mid] <= _j){
+            l = mid+1;
+        }else{
+            r = mid;
+        }
+    }
+    i = l-1;
 
     double value = 0.0;
-    for(int i = 0; i < A_w; i++)
-        value += A_vals[row_C*A_w+i] * A_vals[col_C*A_w+i]; // A_vals[row_C][i] * At_vals[i][col_C] = A_vals[row_C][i] * A_vals[col_C][i]
-    C_vals[idx] = S_vals[idx] * value; // C_vals[idx]
+    for(int k = 0; k < A_w; k++)
+        value += A_vals[i*A_w+k] * A_vals[j*A_w+k]; // A_vals[row_C][i] * At_vals[i][col_C] = A_vals[row_C][i] * A_vals[col_C][i]
+    C_vals[_j] = S_vals[_j] * value; // C_vals[_j]
 }
 
 void Algo::sddmm_with_tid_mapping(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C, float *gpu_compute_time){
@@ -743,7 +750,7 @@ void Algo::sddmm_block_over_nnz(HostSparseMat &S, HostDenseMat &A, HostSparseMat
 
     if(gpu_compute_time) cudaEventRecord(start);
 
-    sddmm_kernel<<<dimGrid, dimBlock>>>(dS.vals, dS.cols, dS.offsets, dS.nnz, dA.vals, dC.vals, A_h, A_w);
+    sddmm_block_over_nnz_kernel<<<dimGrid, dimBlock>>>(dS.vals, dS.cols, dS.offsets, dS.nnz, dA.vals, dC.vals, A_h, A_w);
 
     if(gpu_compute_time) cudaEventRecord(end);
 
