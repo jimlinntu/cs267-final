@@ -495,20 +495,32 @@ void Algo::spmm_with_shm_jim_transpose_first(HostSparseMat &S, HostDenseMat &A, 
     }
 }
 
-void Algo::dgemm(DeviceDenseMat &A, DeviceDenseMat &B, DeviceDenseMat &C) {
+void Algo::dgemm(DeviceDenseMat &A, DeviceDenseMat &B, DeviceDenseMat &C, cublasOperation_t transB) {
     // because cublas dgemm is column major, dgemm is actually doing At @ Bt
     // we want the output C to be row-major, so we can do Ct = Bt @ At (because C = A @ B)
     // Ct is in column major, so it is equivalent to C in row major
     // reference: https://github.com/zchee/cuda-sample/blob/master/0_Simple/matrixMulCUBLAS/matrixMulCUBLAS.cpp#L280
-    int m = B.num_cols, k = B.num_rows, n = A.num_rows;
-    int ldb = m, lda = k, ldc = m;
+    int m, k, n;
+    if(transB == CUBLAS_OP_T){
+        m = B.num_rows, k = B.num_cols, n = A.num_rows;
+    }else{
+        m = B.num_cols, k = B.num_rows, n = A.num_rows;
+    }
+
     double _alpha = 1.0, _beta = 0.0;
     const double *alpha = &_alpha, *beta = &_beta;
     const double *A_vals = A.vals, *B_vals = B.vals;
     double *C_vals = C.vals;
     cublasHandle_t handle;
     cublasCreate(&handle);
-    cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, alpha, B_vals, ldb, A_vals, lda, beta, C_vals, ldc);
+    // op(first matrix) = m x k
+    // op(second matrix) = k x n
+    // op(output matrix) = m x n
+    cublasDgemm(handle, transB, CUBLAS_OP_N, m, n, k, alpha,
+            B_vals, B.num_cols,
+            A_vals, A.num_cols, beta,
+            C_vals, C.num_cols);
+    cublasDestroy(handle);
 }
 
 __global__ void elementwise_mult(double* A_vals, double* B_vals, double* C_vals, int m) {
@@ -556,14 +568,6 @@ void Algo::sddmm_by_dgemm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C, f
         cudaEventCreate(&end);
     }
 
-    // Create transposed A
-    double *At_vals = new double[A.num_cols * A.num_rows];
-    for(int i = 0; i < A.num_rows; i++)
-        for(int j = 0; j < A.num_cols; j++)
-            At_vals[j*A.num_rows+i] = A[i*A.num_cols+j]; // At[j][i] = A[i][j]
-
-    HostDenseMat At(A.num_cols, A.num_rows, At_vals, true);
-
     // Create dense C
     double *Cds_vals = new double[A.num_rows * A.num_rows];
     std::fill(Cds_vals, Cds_vals+A.num_rows * A.num_rows, 0);
@@ -574,17 +578,16 @@ void Algo::sddmm_by_dgemm(HostSparseMat &S, HostDenseMat &A, HostSparseMat &C, f
     HostDenseMat Sds(S.num_rows, S.num_cols, Sds_vals, true);
     S.to_dense(Sds);
 
-    DeviceDenseMat dSds, dA, dAt, dCds;
+    DeviceDenseMat dSds, dA, dCds;
 
     Sds.to_device(dSds);
     A.to_device(dA);
-    At.to_device(dAt);
     Cds.to_device(dCds);
 
 
     if(gpu_compute_time) cudaEventRecord(start);
 
-    dgemm(dA, dAt, dCds);
+    dgemm(dA, dA, dCds, CUBLAS_OP_T);
 
     dim3 threadsPerBlock(TILE_WIDTH);
     dim3 numBlocks((C.num_rows*C.num_cols + TILE_WIDTH - 1) / TILE_WIDTH);

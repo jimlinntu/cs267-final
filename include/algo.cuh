@@ -50,7 +50,9 @@ struct Algo{
     void sddmm_seq(HostSparseMat &, HostDenseMat &, HostSparseMat &);
     
     // cublas helper
-    void dgemm(DeviceDenseMat &, DeviceDenseMat &, DeviceDenseMat &);
+    // C = A@B (B might be tranposed depending on transB value)
+    void dgemm(DeviceDenseMat &A, DeviceDenseMat &B, DeviceDenseMat &C,
+            cublasOperation_t transB = CUBLAS_OP_N);
 };
 
 
