@@ -158,10 +158,10 @@ void Benchmarker::benchmark_spmm(BenchmarkResult &bresult, int S_h, int S_w, int
         gpu_m["spmm_no_shm"].push_back(gpu_time);
 
         start = clock();
-        algo.spmm_with_shm_jim(S, A, C, &gpu_time);
+        algo.spmm_with_shm_improved(S, A, C, &gpu_time);
         end = clock();
-        m["spmm_with_shm_jim"].push_back((double)(end - start) / CLOCKS_PER_SEC);
-        gpu_m["spmm_with_shm_jim"].push_back(gpu_time);
+        m["spmm_with_shm_improved"].push_back((double)(end - start) / CLOCKS_PER_SEC);
+        gpu_m["spmm_with_shm_improved"].push_back(gpu_time);
         
         start = clock();
         cublasalgo.spmm_by_dgemm(S, A, C, &gpu_time);
@@ -184,14 +184,14 @@ void Benchmarker::benchmark_spmm(BenchmarkResult &bresult, int S_h, int S_w, int
 
     bresult.result["spmm_with_shm"] = avg(m["spmm_with_shm"]);
     bresult.result["spmm_no_shm"] = avg(m["spmm_no_shm"]);
-    bresult.result["spmm_with_shm_jim"] = avg(m["spmm_with_shm_jim"]);
+    bresult.result["spmm_with_shm_improved"] = avg(m["spmm_with_shm_improved"]);
     bresult.result["spmm_with_shm_jim_transpose_first"] = avg(m["spmm_with_shm_jim_transpose_first"]);
     bresult.result["spmm_by_dgemm"] = avg(m["spmm_by_dgemm"]);
     bresult.result["cusparsespmm"] = avg(m["cusparsespmm"]);
 
     bresult.gpu_compute_result["spmm_with_shm"] = avg(gpu_m["spmm_with_shm"]);
     bresult.gpu_compute_result["spmm_no_shm"] = avg(gpu_m["spmm_no_shm"]);
-    bresult.gpu_compute_result["spmm_with_shm_jim"] = avg(gpu_m["spmm_with_shm_jim"]);
+    bresult.gpu_compute_result["spmm_with_shm_improved"] = avg(gpu_m["spmm_with_shm_improved"]);
     bresult.gpu_compute_result["spmm_with_shm_jim_transpose_first"] = avg(gpu_m["spmm_with_shm_jim_transpose_first"]);
     bresult.gpu_compute_result["spmm_by_dgemm"] = avg(gpu_m["spmm_by_dgemm"]);
     bresult.gpu_compute_result["cusparsespmm"] = avg(gpu_m["cusparsespmm"]);

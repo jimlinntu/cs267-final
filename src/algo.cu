@@ -360,7 +360,7 @@ __global__ void spmm_with_shm_jim_kernel(
     if(j < A_num_cols) C_vals[i * A_num_cols + j] = c;
 }
 
-void Algo::spmm_with_shm_jim(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C, float *gpu_compute_time){
+void Algo::spmm_with_shm_improved(HostSparseMat &S, HostDenseMat &A, HostDenseMat &C, float *gpu_compute_time){
     cudaEvent_t start, end;
     if(gpu_compute_time){
         cudaEventCreate(&start);
