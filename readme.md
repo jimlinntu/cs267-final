@@ -1,4 +1,4 @@
-# Accelerate SDDMM\_SpMM in CUDA C/C++
+# CS267 Project - SpMM, SDDMM and SDDMM\_SpMM Kernels in CUDA C/C++
 
 ## Environment Setup on Cori
 
